@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, type JSX } from "react";
+import { useEffect, useMemo, useState, type JSX } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import {
   ResponsiveContainer,

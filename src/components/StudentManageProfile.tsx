@@ -101,7 +101,7 @@ const Toast = styled.div`
   font-weight:700;
 `;
 
-const Muted = styled.div`color:#6b7280; font-size:13px;`;
+
 
 /* ================= CONSTS ================= */
 const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.pike.replit.dev";
@@ -156,7 +156,6 @@ export default function StudentManageProfile(): JSX.Element {
     year_enrolled: "", expected_grad: "",
   });
 
-  const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [toast, setToast] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -211,7 +210,7 @@ export default function StudentManageProfile(): JSX.Element {
 
   // server profile + merge local + seed email from LS
   useEffect(() => {
-    if (!studentUserId) { setLoading(false); return; }
+    if (!studentUserId) { return; }
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/students/by_user/${studentUserId}`);
@@ -238,7 +237,7 @@ export default function StudentManageProfile(): JSX.Element {
         console.warn(e);
         setError("Failed to load profile.");
       } finally {
-        setLoading(false);
+        
       }
     })();
   }, [studentUserId, emailFromLS]);

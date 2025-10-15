@@ -64,6 +64,7 @@ function Button({children, ghost, className, ...rest}: ButtonProps) {
 
 /* ================= Component ================= */
 type PredictionRow = {
+  name?: string;                     // ✅ make optional
   student_id: string;
   student_no?: string;
   first_name?: string;
@@ -74,6 +75,7 @@ type PredictionRow = {
   strengths?: string[];
   weaknesses?: string[];
 };
+
 
 export default function AdminPredictions() {
   const [rows, setRows] = useState<PredictionRow[]>([]);
@@ -239,10 +241,15 @@ export default function AdminPredictions() {
       <GlobalStyle />
       <AppWrap>
         <Sidebar
-          menuItems={menuItems}
-          active={"Predictions"}
-          onLogout={() => { localStorage.clear(); window.location.replace("/login"); }}
-        />
+        menuItems={menuItems}
+        active="Predictions"
+        onSelect={() => {}}                 // ✅ add this
+        onLogout={() => {
+          localStorage.clear();
+          window.location.replace("/login");
+        }}
+      />
+
 
         <Main>
           <Card>
@@ -383,7 +390,7 @@ export default function AdminPredictions() {
                 <div><b>Label:</b> {selected.pred_label}</div>
                 <div><b>Index:</b> {selected.pred_index}</div>
                 <div><b>Confidence:</b> {
-                  typeof selected.proba_json?.[selected.pred_label] === "number"
+                  selected.pred_label && typeof selected.proba_json?.[selected.pred_label] === "number"
                     ? selected.proba_json[selected.pred_label].toFixed(4)
                     : "—"
                 }</div>

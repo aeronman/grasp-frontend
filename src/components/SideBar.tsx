@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import styled from "styled-components";
 import { Link, useLocation } from "react-router-dom";
 
@@ -81,7 +81,14 @@ const SidebarFooter = styled.div`
   overflow: hidden;
 `;
 
-export default function Sidebar({ menuItems = [], active, onSelect, onLogout }) {
+type SidebarProps = {
+  menuItems?: { label: string; url: string }[];
+  active?: string;
+  onSelect?: (label: string) => void;
+  onLogout?: () => void;
+};
+
+export default function Sidebar({ menuItems = [], active, onSelect, onLogout }: SidebarProps) {
   const location = useLocation();
 
   const email = useMemo(() => localStorage.getItem("user_email") || "student@grasp.app", []);

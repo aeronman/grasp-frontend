@@ -1,4 +1,4 @@
-// AdminManageProfile.jsx
+// AdminManageProfile.tsx
 import React, { useEffect, useRef, useState } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import Sidebar from "./SideBar";
@@ -70,22 +70,18 @@ const Pill = styled.button`
 const Section = styled(Card)`
   padding-top:18px;
 `;
-/* inside the section, solid pill — not floating outside */
 const SectionBadge = styled.div`
   display:inline-block;
-  background:#FFD8BD;          /* solid color as requested */
+  background:#FFD8BD;
   color:#1f2937;
   padding:6px 14px;
   border-radius:14px;
   border:2px solid #D55B00;
   font-weight:700;
   font-size:13px;
-  margin-bottom:12px;           /* sits inside the rectangle */
+  margin-bottom:12px;
 `;
-interface FieldProps {
-  span?: number;
-}
-
+interface FieldProps { span?: number; }
 const Field = styled.label<FieldProps>`
   grid-column: span ${p=>p.span||4};
   display:flex; flex-direction:column; gap:8px; font-size:12px; color:#111827;
@@ -97,10 +93,7 @@ const Field = styled.label<FieldProps>`
 `;
 
 const Row = styled.div`display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;`;
-interface ButtonProps {
-  ghost?: boolean;
-}
-
+interface ButtonProps { ghost?: boolean; }
 const Button = styled.button<ButtonProps>`
   border:0; border-radius:12px; padding:12px 16px; font-weight:800; cursor:pointer;
   background:${p=>p.ghost?'#fff':'#d55b00'}; color:${p=>p.ghost?'#374151':'#fff'};
@@ -114,22 +107,14 @@ const Toast = styled.div`
   padding:12px 14px; border-radius:12px; box-shadow:0 8px 30px rgba(15,27,40,.15);
   font-weight:700;
 `;
-const Muted = styled.div`color:#6b7280; font-size:13px;`;
-const Preview = styled.div`
-  display:grid; grid-template-columns:repeat(2,1fr); gap:10px; font-size:14px;
-  div b { color:#111827 }
-  @media(max-width:640px){ grid-template-columns:1fr; }
-`;
 
 /* ===== Constants ===== */
 const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.pike.replit.dev";
-/* Fallback profile images */
 const AVATAR_FALLBACKS = [
   "https://www.gravatar.com/avatar/?d=mp&s=320",
   "https://i.pravatar.cc/320?img=67",
 ];
 
-/* localStorage-only fields (NOT in DB) */
 const localOnlyKeys = [
   "sex", "dob", "age", "pob",
   "street", "lot", "brgy", "city",
@@ -139,7 +124,7 @@ export default function AdminManageProfile() {
   const [form, setForm] = useState({
     first_name: "", middle_name: "", last_name: "",
     email: "", contact_no: "", position: "", office: "",
-    // local-only fields:
+    // local-only:
     sex: "", dob: "", age: "", pob: "",
     street: "", lot: "", brgy: "", city: "",
   });
@@ -153,20 +138,17 @@ export default function AdminManageProfile() {
   const fileRef = useRef<HTMLInputElement|null>(null);
 
   const navigate = useNavigate();
-  const toastTimer = useRef<any>(null);
+  const toastTimer = useRef<number | null>(null);
 
-  // Logged-in admin id
   const adminIdRaw = typeof window !== "undefined" ? localStorage.getItem("user_id") : null;
   const user_id = adminIdRaw ? Number(adminIdRaw) : null;
 
-  // Also get role/email from login to display/seed
   const roleFromLS  = (typeof window !== "undefined" && localStorage.getItem("user_role"))  || "";
   const emailFromLS = (typeof window !== "undefined" && localStorage.getItem("user_email")) || "";
 
   const AVATAR_KEY = user_id ? `admin_avatar_b64_${user_id}` : "admin_avatar_b64";
   const LOCAL_PROFILE_KEY = user_id ? `admin_profile_local_${user_id}` : "admin_profile_local";
 
-  /* ---------- helpers for local-only persistence ---------- */
   const loadLocalOnly = () => {
     try { return JSON.parse(localStorage.getItem(LOCAL_PROFILE_KEY) || "{}"); }
     catch { return {}; }
@@ -177,7 +159,6 @@ export default function AdminManageProfile() {
     localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(next));
   };
 
-  /* unified setter: also persist if key is local-only */
   const setF = (k: string, v: any) => {
     setForm(s => {
       const next = { ...s, [k]: v };
@@ -200,12 +181,10 @@ export default function AdminManageProfile() {
     }));
   };
 
-  // Load avatar + localOnly fields initially
   useEffect(() => {
     if (user_id) {
       const cached = localStorage.getItem(AVATAR_KEY);
       if (cached) setAvatarSrc(cached);
-
       const localOnly = loadLocalOnly();
       if (localOnly && Object.keys(localOnly).length) {
         setForm(f => ({ ...f, ...localOnly }));
@@ -213,7 +192,6 @@ export default function AdminManageProfile() {
     }
   }, [AVATAR_KEY, LOCAL_PROFILE_KEY, user_id]);
 
-  // Load profile from API, then merge local-only on top and seed email from LS
   useEffect(() => {
     if(!user_id){ setLoading(false); return; }
     (async () => {
@@ -226,12 +204,10 @@ export default function AdminManageProfile() {
         } else {
           setHasProfile(false);
         }
-        // merge local-only after server load
         const localOnly = loadLocalOnly();
         if (localOnly && Object.keys(localOnly).length) {
           setForm(f => ({ ...f, ...localOnly }));
         }
-        // seed email from localStorage if still empty
         setForm(f => (!f.email && emailFromLS ? { ...f, email: emailFromLS } : f));
       } catch(e:any){
         console.warn(e);
@@ -242,12 +218,11 @@ export default function AdminManageProfile() {
     })();
   }, [user_id, emailFromLS]);
 
-  // Auto-hide toast
   useEffect(() => {
     if (!toast) return;
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 2500);
-    return () => toastTimer.current && clearTimeout(toastTimer.current);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(""), 2500);
+    return () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); };
   }, [toast]);
 
   const save = async () => {
@@ -255,7 +230,6 @@ export default function AdminManageProfile() {
     setSaving(true);
     setError("");
     try {
-      // send only DB fields
       const payload = {
         user_id,
         first_name: form.first_name,
@@ -280,7 +254,6 @@ export default function AdminManageProfile() {
         setHasProfile(true);
       }
 
-      // persist ALL local-only fields at save time too
       const localSnapshot: Record<string,string> = {};
       for (const k of localOnlyKeys) localSnapshot[k] = (form as any)[k] ?? "";
       persistLocalOnly(localSnapshot);
@@ -293,7 +266,6 @@ export default function AdminManageProfile() {
     }
   };
 
-  // Avatar select → base64 → preview + persist to localStorage
   const onPickAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -308,7 +280,7 @@ export default function AdminManageProfile() {
   };
 
   const handleLogout = () => {
-    localStorage.clear(); // clears avatar + local-only as requested
+    localStorage.clear();
     navigate("/login", { replace: true });
   };
 
@@ -328,8 +300,16 @@ export default function AdminManageProfile() {
     <>
       <GlobalStyle/>
       <Shell>
-        <Sidebar menuItems={menuItems} active="Manage Profile" onLogout={handleLogout}/>
+        <Sidebar
+          menuItems={menuItems}
+          active="Manage Profile"
+          onSelect={() => { /* required by Sidebar typing; no-op */ }}
+          onLogout={handleLogout}
+        />
         <Content>
+          {/* Show loading state so `loading` is used */}
+          {loading && <div style={{marginBottom:12}}>Loading…</div>}
+
           {/* HEADER */}
           <Card style={{paddingTop:28}}>
             <HeaderBar>
@@ -401,12 +381,9 @@ export default function AdminManageProfile() {
               <Button onClick={save} disabled={saving}>
                 {saving ? "Saving..." : hasProfile ? "Update Profile" : "Create Profile"}
               </Button>
-             
             </Row>
             {!!error && <div style={{marginTop:10, color:"#b91c1c", fontWeight:700}}>⚠ {error}</div>}
           </Section>
-
-         
         </Content>
       </Shell>
 

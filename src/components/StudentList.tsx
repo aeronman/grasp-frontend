@@ -167,9 +167,6 @@ const course = {
   elec: ["it306","it307","it311","it312"],
 } as const;
 
-const allCourseKeys = [
-  ...course.prog, ...course.net, ...course.db, ...course.wsd, ...course.hcf, ...course.elec
-] as const;
 
 /* Grades */
 const GRADE_VALUES = [

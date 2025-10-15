@@ -1,5 +1,5 @@
 // StudentFormWithClustering.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import StudentSidebar from "./StudentSideBar";
 import { useNavigate, Link } from "react-router-dom";
@@ -307,7 +307,7 @@ export default function StudentFormWithClustering(){
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [error, setError] = useState("");
   const [existingPrediction, setExistingPrediction] = useState<{ prediction_index: number } | null>(null);
-  const [active, setActive] = useState("Predict");
+
   const navigate = useNavigate();
 
   const studentIdRaw = typeof window !== "undefined" ? localStorage.getItem("user_id") : null;
@@ -727,11 +727,12 @@ export default function StudentFormWithClustering(){
       <GlobalStyle/>
       <Shell>
        <StudentSidebar
-          menuItems={menuItems}
-          active={"Predict"}
-          onSelect={() => {}}     // <-- add this
-          onLogout={handleLogout}
-        />
+        menuItems={menuItems}
+        active="Predict"
+        onSelect={() => {}}     // keep this to satisfy Sidebar’s required prop
+        onLogout={handleLogout}
+      />
+
 
         <Content>
           {!shouldHideForm && FormCard}
