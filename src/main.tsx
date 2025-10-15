@@ -10,7 +10,6 @@ import ResetPassword from "./components/ResetPassword";
 import AboutUs from "./components/AboutUs";
 import AdminDashboard from "./components/AdminDashboard";
 import StudentList from "./components/StudentList";
-import StudentEmployabilityForm from "./components/Predict";
 import StudentFormWithClustering from "./components/StudentForm";
 import AdminPredictions from "./components/AdminPredictions";
 import StudentDashboard from "./components/StudentDashboard";

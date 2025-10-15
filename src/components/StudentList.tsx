@@ -1,9 +1,59 @@
-// AdminStudents.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type JSX } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import Sidebar from "./Sidebar";
+import Sidebar from "./SideBar";
 
-/* =================== Global / Layout (match student form) =================== */
+/* =================== Types =================== */
+type Gender = "Male" | "Female";
+type YesNo = "Yes" | "No";
+
+type StudentListRow = {
+  id: number;
+  user_id?: number;
+  student_no?: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  age?: number | string;
+  gender?: Gender | "";
+  specialization_track?: string;
+  location?: string;
+};
+
+type StudentFull = StudentListRow & {
+  awards?: YesNo | "";
+  latin_honors?: YesNo | "";
+  failed_grade?: YesNo | "";
+  dropped_subjects?: YesNo | "";
+  monthly_income_status?: string;
+  certification_text?: string;
+  living_basis?: string;
+
+  extracurricular_json?: string;
+  soft_skills_json?: string;
+  extracurricular?: string[];
+  soft_skills?: string[];
+
+  // dynamic course grades:
+  [k: string]: any;
+};
+
+type Mode = "list" | "view" | "edit";
+type ToastType = "success" | "error";
+
+type ToastItem = { id: string; msg: string; type: ToastType };
+
+type SortKey =
+  | "name"
+  | "student_no"
+  | "age"
+  | "gender"
+  | "specialization_track"
+  | "location"
+  | keyof StudentListRow;
+
+type MenuItem = { label: string; url: string };
+
+/* =================== Global / Layout =================== */
 const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
   *{box-sizing:border-box}
@@ -18,20 +68,20 @@ const Grid = styled.div`
   display:grid;grid-template-columns:repeat(12,1fr);gap:12px;
   @media(max-width:1024px){grid-template-columns:1fr;}
 `;
-const Field = styled.label`
-  grid-column: span ${p=>p.span||6};
+const Field = styled.label<{ span?: number }>`
+  grid-column: span ${p => p.span ?? 6};
   display:flex;flex-direction:column;gap:6px;font-size:13px;color:#374151;
   .label{font-weight:600;}
   input,select,textarea{padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px;}
   small{color:#6b7280}
 `;
 const Row = styled.div`display:flex;gap:10px;flex-wrap:wrap;`;
-const Button = styled.button`
+const Button = styled.button<{ ghost?: boolean }>`
   border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;
   box-shadow:0 8px 30px rgba(15,27,40,0.05);
-  background:${p=>p.ghost?'#fff':'#d55b00'};
-  color:${p=>p.ghost?'#374151':'#fff'};
-  border:${p=>p.ghost?'1px solid #e5e7eb':'0'};
+  background:${p=>p.ghost ? '#fff' : '#d55b00'};
+  color:${p=>p.ghost ? '#374151' : '#fff'};
+  border:${p=>p.ghost ? '1px solid #e5e7eb' : '0'};
   &:disabled{opacity:.6; cursor:not-allowed}
 `;
 
@@ -60,11 +110,11 @@ const Footer = styled.div`
   select{padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff;}
 `;
 
-/* ======= Toast / Alert UI (simple, no libs) ======= */
+/* ======= Toast ======= */
 const ToastWrap = styled.div`
   position: fixed; top: 20px; right: 20px; display: grid; gap: 10px; z-index: 9999;
 `;
-const Toast = styled.div`
+const Toast = styled.div<{ type: ToastType }>`
   background: ${p => p.type === "error" ? "#fee2e2" : "#ecfdf5"};
   color: ${p => p.type === "error" ? "#991b1b" : "#065f46"};
   border: 1px solid ${p => p.type === "error" ? "#fecaca" : "#a7f3d0"};
@@ -73,7 +123,7 @@ const Toast = styled.div`
   min-width: 260px; font-weight: 600;
 `;
 
-/* =================== Constants / Helpers (EXACT match to StudentForm) =================== */
+/* =================== Constants / Helpers =================== */
 const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.pike.replit.dev";
 
 const EXTRACURR = [
@@ -82,16 +132,19 @@ const EXTRACURR = [
   "Cultural Performer",
   "Student Council (e.g., Student Government, etc.)",
   "Publication (e.g., CURSOR Publication, Pacesetter, etc.)",
-];
+] as const;
+
 const SOFT_SKILLS = [
   "Verbal Communication","Written Communication","Critical Thinking","Leadership",
   "Time Management","Problem-Solving Skills","Networking","Collaboration",
   "Ethical Judgment","Stress Management","Socializing / Interpersonal Skills","Adaptability and Flexibility",
-];
-const yesno = ["Yes","No"];
-const spec = ["Business Analytics","Web and Mobile Application Development","Service Management"];
-const genderOpts = ["Male","Female"];
-const locationOpts = ["Inside of Bulacan","Outside of Bulacan"];
+] as const;
+
+const yesno: YesNo[] = ["Yes","No"];
+const spec = ["Business Analytics","Web and Mobile Application Development","Service Management"] as const;
+const genderOpts: Gender[] = ["Male","Female"];
+const locationOpts = ["Inside of Bulacan","Outside of Bulacan"] as const;
+
 const income = [
   "Poor (Less than 10,956)",
   "Low-Income (10,957 - 21,194)",
@@ -100,8 +153,9 @@ const income = [
   "Upper-Middle Income (76,670 - 131,484)",
   "Upper-Income (131,485 - 219,140)",
   "Rich (219,141 and above)"
-];
-const housingBasis = ["Own/Parents/Relative","Boarding/Dorm/Bedspace","Rented Apartment/Condo"];
+] as const;
+
+const housingBasis = ["Own/Parents/Relative","Boarding/Dorm/Bedspace","Rented Apartment/Condo"] as const;
 
 /* Course keys */
 const course = {
@@ -111,56 +165,67 @@ const course = {
   wsd:  ["it303","it304","it310"],
   hcf:  ["it102","it104"],
   elec: ["it306","it307","it311","it312"],
-};
-const allCourseKeys = [...course.prog, ...course.net, ...course.db, ...course.wsd, ...course.hcf, ...course.elec];
+} as const;
 
-/* ===== Corrected Grade dropdown values: 1.00–3.00 (step .25) then 5.00 ===== */
+const allCourseKeys = [
+  ...course.prog, ...course.net, ...course.db, ...course.wsd, ...course.hcf, ...course.elec
+] as const;
+
+/* Grades */
 const GRADE_VALUES = [
   ...Array.from({ length: 9 }, (_, i) => (1 + i * 0.25).toFixed(2)), // 1.00–3.00
   "5.00",
-];
+] as const;
 
-function avg(grades) {
-  const nums = grades.map(Number).filter(v => !isNaN(v));
+function avg(grades: (string | number | undefined)[]): string {
+  const nums = grades.map(Number).filter(v => Number.isFinite(v));
   if (nums.length === 0) return "";
   const sum = nums.reduce((a, b) => a + b, 0);
   return (sum / nums.length).toFixed(2);
 }
-function softComposite(arr){
-  const n=arr.length;
-  if(n>=9) return {score:n,level:"Advanced"};
-  if(n>=5) return {score:n,level:"Developing"};
-  return {score:n,level:"Foundational"};
+function softComposite(arr: string[]) {
+  const n = arr?.length ?? 0;
+  if (n >= 9) return { score: n, level: "Advanced" as const };
+  if (n >= 5) return { score: n, level: "Developing" as const };
+  return { score: n, level: "Foundational" as const };
 }
-function extraCluster(arr){
+function extraCluster(arr: string[]) {
   const a = (arr||[]).filter(x => x && x !== "None");
-  const n=a.length;
-  if(n<=0) return "No Participation";
-  if(n===1) return "Single Extracurricular";
+  const n = a.length;
+  if (n <= 0) return "No Participation";
+  if (n === 1) return "Single Extracurricular";
   return "Multiple Extracurricular";
 }
-function resolveHousing(basis){
-  const s=(basis||"").toLowerCase();
-  if(s.includes("boarding")||s.includes("dorm")||s.includes("bedspace")||s.includes("rented")||s.includes("apartment")||s.includes("condo")) return "Temporary Housing";
+function resolveHousing(basis?: string) {
+  const s = (basis||"").toLowerCase();
+  if (["boarding","dorm","bedspace","rented","apartment","condo"].some(k => s.includes(k))) {
+    return "Temporary Housing";
+  }
   return "Permanent Housing";
 }
-function splitCerts(text){
-  return (text||"")
-    .split(",")
-    .map(x=>x.trim())
-    .filter(Boolean);
+function splitCerts(text?: string) {
+  return (text||"").split(",").map(x=>x.trim()).filter(Boolean);
 }
-function ageFromVal(v) {
-  if (!v) return "";
+function ageFromVal(v: number | string | undefined): string | number {
+  if (v === undefined || v === null || v === "") return "";
   const n = Number(v);
   return Number.isFinite(n) ? n : String(v);
 }
 
-/* =================== Profile Pane (View/Edit) =================== */
-function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }) {
-  const setF = (k,v)=> onChange({ ...value, [k]: v });
-  const toggleInArray=(arrKey, val)=>{
-    const cur = new Set(value[arrKey] || []);
+/* =================== Profile Pane =================== */
+function AdminStudentProfile(props: {
+  mode: Mode;
+  value: StudentFull;
+  onChange: (v: StudentFull) => void;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  const { mode, value, onChange, onCancel, onSave, saving } = props;
+  const setF = (k: string, v: any) => onChange({ ...value, [k]: v });
+
+  const toggleInArray = (arrKey: "extracurricular" | "soft_skills", val: string) => {
+    const cur = new Set<string>(value[arrKey] || []);
     cur.has(val) ? cur.delete(val) : cur.add(val);
     onChange({ ...value, [arrKey]: Array.from(cur) });
   };
@@ -178,14 +243,18 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
   const cert_yn         = splitCerts(value.certification_text).length ? "Yes" : "No";
 
   const readOnly = mode !== "edit";
-  const Input = (p)=><input {...p} disabled={readOnly} />;
-  const Select= ({options, val, onC})=>(
+
+  const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (p) =>
+    <input {...p} disabled={readOnly} />;
+
+  const Select: React.FC<{ options: readonly string[]; val?: string; onC: (v: string)=>void }> = ({ options, val, onC }) => (
     <select value={val||""} onChange={e=>onC(e.target.value)} disabled={readOnly}>
       <option value="">Select...</option>
-      {options.map(o=><option key={o}>{o}</option>)}
+      {options.map(o=><option key={o} value={o}>{o}</option>)}
     </select>
   );
-  const GradeSelect = ({ val, onC }) => (
+
+  const GradeSelect: React.FC<{ val?: string; onC: (v: string)=>void }> = ({ val, onC }) => (
     <select value={val || ""} onChange={(e)=>onC(e.target.value)} disabled={readOnly}>
       <option value="">Select…</option>
       {GRADE_VALUES.map(g => <option key={g} value={g}>{g}</option>)}
@@ -208,7 +277,7 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
         <Field span={3}><span className="label">Student No.</span><Input value={value.student_no||""} onChange={e=>setF("student_no",e.target.value)} /></Field>
         <Field span={2}><span className="label">Age</span><Input value={value.age||""} onChange={e=>setF("age",e.target.value)} /></Field>
         <Field span={4}><span className="label">Gender</span>
-          <Select options={genderOpts} val={value.gender} onC={v=>setF("gender",v)} />
+          <Select options={genderOpts} val={value.gender ?? ""} onC={v=>setF("gender",v)} />
         </Field>
 
         <Field span={6}><span className="label">First Name</span><Input value={value.first_name||""} onChange={e=>setF("first_name",e.target.value)} /></Field>
@@ -216,35 +285,35 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
         <Field span={3}><span className="label">Last Name</span><Input value={value.last_name||""} onChange={e=>setF("last_name",e.target.value)} /></Field>
 
         <Field span={6}><span className="label">Location</span>
-          <Select options={locationOpts} val={value.location} onC={v=>setF("location",v)} />
+          <Select options={locationOpts} val={value.location ?? ""} onC={v=>setF("location",v)} />
         </Field>
 
         <Field span={6}><span className="label">Housing Basis</span>
-          <Select options={housingBasis} val={value.living_basis} onC={v=>setF("living_basis",v)} />
+          <Select options={housingBasis} val={value.living_basis ?? ""} onC={v=>setF("living_basis",v)} />
           <small>Derived Living Arrangement: <b>{living_resolved||"-"}</b></small>
         </Field>
 
         <Field span={4}><span className="label">Awards</span>
-          <Select options={yesno} val={value.awards} onC={v=>setF("awards",v)} />
+          <Select options={yesno} val={(value.awards as string) ?? ""} onC={v=>setF("awards",v)} />
         </Field>
         <Field span={8}><span className="label">Specialization Track</span>
-          <Select options={spec} val={value.specialization_track} onC={v=>setF("specialization_track",v)} />
+          <Select options={spec as unknown as string[]} val={value.specialization_track ?? ""} onC={v=>setF("specialization_track",v)} />
         </Field>
 
         <Field span={4}><span className="label">Latin Honors</span>
-          <Select options={yesno} val={value.latin_honors} onC={v=>setF("latin_honors",v)} />
+          <Select options={yesno} val={(value.latin_honors as string) ?? ""} onC={v=>setF("latin_honors",v)} />
         </Field>
 
         <Field span={4}><span className="label">Failed Grade</span>
-          <Select options={yesno} val={value.failed_grade} onC={v=>setF("failed_grade",v)} />
+          <Select options={yesno} val={(value.failed_grade as string) ?? ""} onC={v=>setF("failed_grade",v)} />
         </Field>
 
         <Field span={4}><span className="label">Dropped Subjects</span>
-          <Select options={yesno} val={value.dropped_subjects} onC={v=>setF("dropped_subjects",v)} />
+          <Select options={yesno} val={(value.dropped_subjects as string) ?? ""} onC={v=>setF("dropped_subjects",v)} />
         </Field>
 
         <Field span={12}><span className="label">Monthly Income Status</span>
-          <Select options={income} val={value.monthly_income_status} onC={v=>setF("monthly_income_status",v)} />
+          <Select options={income as unknown as string[]} val={value.monthly_income_status ?? ""} onC={v=>setF("monthly_income_status",v)} />
         </Field>
 
         <Field span={3}><span className="label">Certification(s)</span>
@@ -284,7 +353,7 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
           <SubH>Programming</SubH>
           <Grid>
             {course.prog.map(k=>(
-              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]||""} onC={(v)=>setF(k,v)} /></Field>
+              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]} onC={(v)=>setF(k,v)} /></Field>
             ))}
             <Field span={2}><span className="label">Avg</span><input readOnly value={programming_avg} /></Field>
           </Grid>
@@ -292,7 +361,7 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
           <SubH>Networking</SubH>
           <Grid>
             {course.net.map(k=>(
-              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]||""} onC={(v)=>setF(k,v)} /></Field>
+              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]} onC={(v)=>setF(k,v)} /></Field>
             ))}
             <Field span={2}><span className="label">Avg</span><input readOnly value={networking_avg} /></Field>
           </Grid>
@@ -300,7 +369,7 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
           <SubH>Database</SubH>
           <Grid>
             {course.db.map(k=>(
-              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]||""} onC={(v)=>setF(k,v)} /></Field>
+              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]} onC={(v)=>setF(k,v)} /></Field>
             ))}
             <Field span={2}><span className="label">Avg</span><input readOnly value={database_avg} /></Field>
           </Grid>
@@ -308,7 +377,7 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
           <SubH>Web and System Development</SubH>
           <Grid>
             {course.wsd.map(k=>(
-              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]||""} onC={(v)=>setF(k,v)} /></Field>
+              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]} onC={(v)=>setF(k,v)} /></Field>
             ))}
             <Field span={2}><span className="label">Avg</span><input readOnly value={wsd_avg} /></Field>
           </Grid>
@@ -316,7 +385,7 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
           <SubH>Hardware and Computing Fundamentals</SubH>
           <Grid>
             {course.hcf.map(k=>(
-              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]||""} onC={(v)=>setF(k,v)} /></Field>
+              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]} onC={(v)=>setF(k,v)} /></Field>
             ))}
             <Field span={2}><span className="label">Avg</span><input readOnly value={hcf_avg} /></Field>
           </Grid>
@@ -324,7 +393,7 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
           <SubH>Electives</SubH>
           <Grid>
             {course.elec.map(k=>(
-              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]||""} onC={(v)=>setF(k,v)} /></Field>
+              <Field key={k} span={2}><span className="label">{k.toUpperCase()}</span><GradeSelect val={value[k]} onC={(v)=>setF(k,v)} /></Field>
             ))}
             <Field span={2}><span className="label">Avg</span><input readOnly value={electives_avg} /></Field>
           </Grid>
@@ -335,34 +404,33 @@ function AdminStudentProfile({ mode, value, onChange, onCancel, onSave, saving }
 }
 
 /* =================== Page: list + filters/search/export =================== */
-export default function AdminStudents() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [mode, setMode] = useState("list"); // list | view | edit
-  const [selected, setSelected] = useState(null);
-  const [saving, setSaving] = useState(false);
+export default function AdminStudents(): JSX.Element {
+  const [rows, setRows] = useState<StudentListRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
+  const [mode, setMode] = useState<Mode>("list");
+  const [selected, setSelected] = useState<StudentFull | null>(null);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const [q, setQ] = useState("");
-  const [gender, setGender] = useState("");
-  const [specF, setSpecF] = useState("");
-  const [locationF, setLocationF] = useState("");
+  const [q, setQ] = useState<string>("");
+  const [gender, setGender] = useState<Gender | "">("");
+  const [specF, setSpecF] = useState<string>("");
+  const [locationF, setLocationF] = useState<string>("");
 
-  const [sortKey, setSortKey] = useState("first_name");
-  const [sortDir, setSortDir] = useState("asc");
+  const [sortKey, setSortKey] = useState<SortKey>("first_name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
-  // Toast state
-  const [toasts, setToasts] = useState([]);
-  const pushToast = (msg, type="success", ttl=3000) => {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const pushToast = (msg: string, type: ToastType = "success", ttl = 3000) => {
     const id = Math.random().toString(36).slice(2);
     setToasts(t => [...t, { id, msg, type }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), ttl);
   };
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     { label: "Dashboard", url: "/admindashboard" },
     { label: "Students", url: "/students" },
     { label: "Manage Profile", url: "/profile" },
@@ -377,7 +445,7 @@ export default function AdminStudents() {
         const r = await fetch(`${API_BASE}/students`);
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || "Failed to load students");
-        setRows(j.students || []);
+        setRows((j.students || []) as StudentListRow[]);
       } catch (e) {
         setError(String(e));
       } finally {
@@ -386,20 +454,20 @@ export default function AdminStudents() {
     })();
   }, []);
 
-  async function openById(id, nextMode) {
+  async function openById(id: number, nextMode: Mode) {
     try {
       setError("");
       const r = await fetch(`${API_BASE}/students/${id}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed to load student");
-      const s = j.student || {};
-      const normalized = {
+      const s = (j.student || {}) as StudentFull;
+      const normalized: StudentFull = {
         ...s,
         extracurricular: JSON.parse(s.extracurricular_json || "[]"),
         soft_skills: JSON.parse(s.soft_skills_json || "[]"),
       };
       setSelected(normalized);
-      setMode(nextMode); // if "edit", the table will hide
+      setMode(nextMode);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       setError(String(e));
@@ -410,17 +478,16 @@ export default function AdminStudents() {
     if (!selected?.id) return;
     try {
       setSaving(true);
-      const graduate_on_time =
+      const graduate_on_time: YesNo =
         (selected.failed_grade === "Yes" || selected.dropped_subjects === "Yes") ? "No" : "Yes";
 
-      const payload = {
+      const payload: StudentFull = {
         ...selected,
         extracurricular: selected.extracurricular || [],
         soft_skills: selected.soft_skills || [],
         graduate_on_time,
       };
 
-      // Save student
       const r = await fetch(`${API_BASE}/students/${selected.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -429,54 +496,49 @@ export default function AdminStudents() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Save failed");
 
-      const updated = {
+      const updated: StudentFull = {
         ...j.student,
         extracurricular: JSON.parse(j.student.extracurricular_json || "[]"),
         soft_skills: JSON.parse(j.student.soft_skills_json || "[]"),
       };
 
-      // Update list row meta
       setRows(rs => rs.map(x => x.id === updated.id ? {
         ...x,
         first_name: updated.first_name,
         last_name: updated.last_name,
         student_no: updated.student_no,
-        gender: updated.gender,
+        gender: updated.gender as Gender,
         age: updated.age,
         specialization_track: updated.specialization_track,
         location: updated.location
       } : x));
 
-      // Recalibrate prediction: delete existing then re-predict fresh
-      try {
-        await fetch(`${API_BASE}/predictions/${updated.id}`, { method: "DELETE" });
-      } catch (_) {}
+      try { await fetch(`${API_BASE}/predictions/${updated.id}`, { method: "DELETE" }); } catch {}
       try {
         await fetch(`${API_BASE}/api/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             student_id: updated.id,
-            DroppedSubjects: updated.dropped_subjects || payload.dropped_subjects || "No"
+            DroppedSubjects: (updated.dropped_subjects || payload.dropped_subjects || "No") as YesNo
           })
         });
-      } catch (_) {}
+      } catch {}
 
-      // UI toasts & back to list
       pushToast("Student saved successfully.", "success");
       pushToast("Prediction recalibrated successfully.", "success");
       setSelected(null);
       setMode("list");
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (e) {
+    } catch (e: any) {
       setError(String(e));
-      pushToast(e.message || "Save failed", "error");
+      pushToast(e?.message || "Save failed", "error");
     } finally {
       setSaving(false);
     }
   }
 
-  async function remove(id) {
+  async function remove(id: number) {
     if (!window.confirm("Delete this student? This also deletes any saved prediction.")) return;
     try {
       const r = await fetch(`${API_BASE}/students/${id}`, { method: "DELETE" });
@@ -485,9 +547,9 @@ export default function AdminStudents() {
       setRows(rs => rs.filter(x => x.id !== id));
       if (selected?.id === id) { setSelected(null); setMode("list"); }
       pushToast("Student deleted.", "success");
-    } catch (e) {
+    } catch (e: any) {
       setError(String(e));
-      pushToast(e.message || "Delete failed", "error");
+      pushToast(e?.message || "Delete failed", "error");
     }
   }
 
@@ -511,13 +573,13 @@ export default function AdminStudents() {
   const sorted = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a,b) => {
-      let av = a[sortKey]; let bv = b[sortKey];
+      let av: any = (a as any)[sortKey]; let bv: any = (b as any)[sortKey];
       if (sortKey === "name") {
         av = `${a.first_name || ""} ${a.last_name || ""}`.trim();
         bv = `${b.first_name || ""} ${b.last_name || ""}`.trim();
       }
       const na = Number(av), nb = Number(bv);
-      let cmp;
+      let cmp: number;
       if (!isNaN(na) && !isNaN(nb)) cmp = na - nb;
       else cmp = String(av ?? "").localeCompare(String(bv ?? ""));
       return sortDir === "asc" ? cmp : -cmp;
@@ -534,7 +596,7 @@ export default function AdminStudents() {
     return sorted.slice(start, start + pageSize);
   }, [sorted, currentPage, pageSize]);
 
-  function setSort(key) {
+  function setSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir(d => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -543,16 +605,16 @@ export default function AdminStudents() {
     }
   }
 
-  const exportColumns = ["id","first_name","middle_name","last_name","student_no","age","gender","specialization_track","location"];
-  function toPlain(items) {
+  const exportColumns = ["id","first_name","middle_name","last_name","student_no","age","gender","specialization_track","location"] as const;
+  function toPlain(items: StudentListRow[]) {
     return items.map(r => {
-      const o = {};
-      exportColumns.forEach(c => o[c] = r[c] ?? "");
-      o.name = `${r.first_name || ""} ${r.last_name || ""}`.trim();
+      const o: Record<string, string | number> = {};
+      exportColumns.forEach(c => { (o as any)[c] = (r as any)[c] ?? ""; });
+      (o as any).name = `${r.first_name || ""} ${r.last_name || ""}`.trim();
       return o;
     });
   }
-  function download(filename, text, type="text/csv") {
+  function download(filename: string, text: string, type="text/csv") {
     const blob = new Blob([text], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -561,11 +623,11 @@ export default function AdminStudents() {
   }
   function exportCSV() {
     const data = toPlain(sorted);
-    const cols = ["id","name","student_no","age","gender","specialization_track","location"];
+    const cols = ["id","name","student_no","age","gender","specialization_track","location"] as const;
     const head = cols.join(",");
     const lines = data.map(r =>
       cols.map(c => {
-        const v = r[c] ?? "";
+        const v = (r as any)[c] ?? "";
         const needsQuote = /[",\n]/.test(String(v));
         const esc = String(v).replace(/"/g,'""');
         return needsQuote ? `"${esc}"` : esc;
@@ -581,8 +643,8 @@ export default function AdminStudents() {
   }
   async function copyToClipboard() {
     const data = toPlain(sorted);
-    const cols = ["id","name","student_no","age","gender","specialization_track","location"];
-    const lines = [cols.join("\t"), ...data.map(r => cols.map(c => r[c] ?? "").join("\t"))].join("\n");
+    const cols = ["id","name","student_no","age","gender","specialization_track","location"] as const;
+    const lines = [cols.join("\t"), ...data.map(r => cols.map(c => (r as any)[c] ?? "").join("\t"))].join("\n");
     try {
       await navigator.clipboard.writeText(lines);
       pushToast("Copied filtered table to clipboard.", "success");
@@ -595,8 +657,8 @@ export default function AdminStudents() {
     const cols = ["ID","Name","Student No.","Age","Gender","Specialization","Location"];
     const rowsHtml = data.map(r => `
       <tr>
-        <td>${r.id}</td><td>${r.name}</td><td>${r.student_no}</td>
-        <td>${r.age}</td><td>${r.gender}</td><td>${r.specialization_track}</td><td>${r.location}</td>
+        <td>${(r as any).id}</td><td>${(r as any).name}</td><td>${(r as any).student_no}</td>
+        <td>${(r as any).age}</td><td>${(r as any).gender}</td><td>${(r as any).specialization_track}</td><td>${(r as any).location}</td>
       </tr>`).join("");
     const html = `
       <html>
@@ -630,6 +692,7 @@ export default function AdminStudents() {
         <Sidebar
           menuItems={menuItems}
           active={"Students"}
+          onSelect={() => { /* noop for student sidebar if required */ }}
           onLogout={() => { localStorage.clear(); window.location.replace("/login"); }}
         />
 
@@ -647,7 +710,7 @@ export default function AdminStudents() {
                 onChange={e => { setQ(e.target.value); setPage(1); }}
                 disabled={mode==="edit"}
               />
-              <select value={gender} onChange={e=>{ setGender(e.target.value); setPage(1); }} disabled={mode==="edit"}>
+              <select value={gender} onChange={e=>{ setGender(e.target.value as Gender | ""); setPage(1); }} disabled={mode==="edit"}>
                 <option value="">Gender (All)</option>
                 <option>Male</option>
                 <option>Female</option>
@@ -679,7 +742,7 @@ export default function AdminStudents() {
             {loading ? (
               <div>Loading…</div>
             ) : (
-              mode !== "edit" && ( /* 🔒 hide table only while editing */
+              mode !== "edit" && (
                 <TableWrap>
                   <Table>
                     <thead>
@@ -759,11 +822,9 @@ export default function AdminStudents() {
               value={selected}
               onChange={setSelected}
               onCancel={()=>{
-                // Cancel: hide edit form and bring table back
                 setSelected(null);
                 setMode("list");
                 window.scrollTo({ top: 0, behavior: "smooth" });
-                pushToast("Edit canceled.", "success");
               }}
               onSave={saveSelected}
               saving={saving}
@@ -772,7 +833,6 @@ export default function AdminStudents() {
         </Main>
       </AppWrap>
 
-      {/* Toasts */}
       <ToastWrap>
         {toasts.map(t => (
           <Toast key={t.id} type={t.type}>{t.msg}</Toast>

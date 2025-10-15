@@ -1,7 +1,7 @@
 // AdminPredictions.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import Sidebar from "./Sidebar";
+import Sidebar from "./SideBar";
 
 const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.pike.replit.dev";
 
@@ -38,13 +38,19 @@ const Footer = styled.div`
   select{padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff;}
 `;
 
-function Button({children, ghost, className, ...rest}) {
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: React.ReactNode;
+  ghost?: boolean;
+  className?: string;
+};
+
+function Button({children, ghost, className, ...rest}: ButtonProps) {
   return (
     <button
       {...rest}
       className={className}
       style={{
-        border:0,borderRadius:10,padding:"12px 16px",fontWeight:700,cursor:"pointer",
+        borderRadius:10,padding:"12px 16px",fontWeight:700,cursor:"pointer",
         boxShadow:"0 8px 30px rgba(15,27,40,0.05)",
         background: ghost ? "#fff" : "#d55b00",
         color: ghost ? "#374151" : "#fff",
@@ -57,11 +63,23 @@ function Button({children, ghost, className, ...rest}) {
 }
 
 /* ================= Component ================= */
+type PredictionRow = {
+  student_id: string;
+  student_no?: string;
+  first_name?: string;
+  last_name?: string;
+  pred_label?: string;
+  pred_index?: string | number;
+  proba_json?: Record<string, number>;
+  strengths?: string[];
+  weaknesses?: string[];
+};
+
 export default function AdminPredictions() {
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState<PredictionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState<PredictionRow | null>(null);
 
   // table search/filters
   const [q, setQ] = useState("");
@@ -101,13 +119,13 @@ export default function AdminPredictions() {
     })();
   }, []);
 
-  const openView = async (studentId) => {
+  const openView = async (studentId: string) => {
     try {
       setError("");
       const r = await fetch(`${API_BASE}/predictions/${studentId}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed to load prediction");
-      const meta = rows.find(x => x.student_id === studentId) || {};
+      const meta: PredictionRow = rows.find(x => x.student_id === studentId) || {} as PredictionRow;
       setSelected({
         ...j.prediction,
         student_id: studentId,
@@ -120,7 +138,7 @@ export default function AdminPredictions() {
     }
   };
 
-  const remove = async (studentId) => {
+  const remove = async (studentId: string | undefined) => {
     if (!window.confirm("Delete this prediction?")) return;
     try {
       const r = await fetch(`${API_BASE}/predictions/${studentId}`, { method: "DELETE" });
@@ -133,7 +151,7 @@ export default function AdminPredictions() {
     }
   };
 
-  const confidenceOf = (proba_json, label) => {
+  const confidenceOf = (proba_json :any, label:any) => {
     if (!proba_json) return null;
     const v = proba_json[label];
     if (v == null) {
@@ -181,13 +199,14 @@ export default function AdminPredictions() {
   useEffect(() => { setPage(1); }, [q, labelFilter, minConf]);
 
   // export
-  function toCSV(items) {
+  function toCSV(items:any) {
     if (!items.length) return "";
-    const cols = ["student_id","student_no","first_name","last_name","pred_label","pred_index","confidence"];
+    const cols = ["student_id","student_no","first_name","last_name","pred_label","pred_index","confidence"] as const;
+    type ColKeys = typeof cols[number];
     const header = cols.join(",");
-    const body = items.map(r => {
+    const body = items.map((r: { proba_json: any; pred_label: any; student_id: any; student_no: any; first_name: any; last_name: any; pred_index: any; }) => {
       const conf = confidenceOf(r.proba_json, r.pred_label);
-      const obj = {
+      const obj: Record<ColKeys, string> = {
         student_id: r.student_id ?? "",
         student_no: r.student_no ?? "",
         first_name: r.first_name ?? "",
@@ -200,7 +219,7 @@ export default function AdminPredictions() {
     }).join("\n");
     return header + "\n" + body;
   }
-  function download(filename, content, type="text/plain") {
+  function download(filename: string, content: BlobPart, type="text/plain") {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

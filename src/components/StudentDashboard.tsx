@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { useNavigate, Link } from "react-router-dom";
-import StudentSidebar from "./StudentSidebar";
+import StudentSidebar from "./StudentSideBar";
 
 const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
@@ -15,7 +15,11 @@ const Card = styled.div`background:#fff;border-radius:14px;padding:22px;box-shad
 const H = styled.h2`margin:0 0 8px;`;
 const SubH = styled.h3`margin:10px 0 12px;font-size:16px;color:#1f2937;`;
 const Row = styled.div`display:flex; gap:10px; flex-wrap:wrap;`;
-const Button = styled.button`
+interface ButtonProps {
+  ghost?: boolean;
+}
+
+const Button = styled.button<ButtonProps>`
   border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;
   box-shadow:0 8px 30px rgba(15,27,40,0.05);
   background:${p=>p.ghost?'#fff':'#d55b00'};
@@ -31,7 +35,13 @@ const Bar = styled.div`
   .val{width:68px; text-align:right; font-weight:700;}
 `;
 const List = styled.ul`list-style:none; padding-left:0; margin:8px 0 0 0; li{display:flex; gap:8px; margin:6px 0;}`;
-const Dot = styled.span`width:8px; height:8px; border-radius:999px; margin-top:6px; background:${p=>p.bad ? "#ef4444" : "#10b981"};`;
+interface DotProps {
+  bad?: boolean;
+}
+const Dot = styled.span<DotProps>`
+  width:8px; height:8px; border-radius:999px; margin-top:6px;
+  background:${p => p.bad ? "#ef4444" : "#10b981"};
+`;
 const FlexSplit = styled.div`
   display:grid; grid-template-columns: 1.2fr .8fr; gap:16px;
   @media(max-width:1024px){ grid-template-columns:1fr; }
@@ -42,10 +52,17 @@ const Pill = styled.span`background:#eef2ff;color:#1f2a5a;border-radius:999px;pa
 const RadarBox = styled.div`background:#fafafa; border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:10px;`;
 
 /* Simple radar again (no deps) */
-function RadarChart({ size=340, labels=[], strengths=[], weaknesses=[] }) {
+interface RadarChartProps {
+  size?: number;
+  labels: string[];
+  strengths: number[];
+  weaknesses: number[];
+}
+
+function RadarChart({ size=340, labels=[], strengths=[], weaknesses=[] }: RadarChartProps) {
   const pad = 24; const r = (size - pad*2)/2; const cx=size/2, cy=size/2; const N = labels.length||1;
-  const toPoint=(i,val)=>{ const a=(Math.PI*2*i/N)-Math.PI/2; const rr=(val/5)*r; return [cx+rr*Math.cos(a), cy+rr*Math.sin(a)]; };
-  const poly=(vals, stroke, fill)=> {
+  const toPoint=(i: number,val: number)=>{ const a=(Math.PI*2*i/N)-Math.PI/2; const rr=(val/5)*r; return [cx+rr*Math.cos(a), cy+rr*Math.sin(a)]; };
+  const poly=(vals: number[], stroke: string | undefined, fill: string | undefined)=> {
     const pts = vals.map((v,i)=>toPoint(i,v)).map(([x,y])=>`${x},${y}`).join(" ");
     return (<g><polygon points={pts} fill={fill} stroke={stroke} strokeWidth="2" opacity="0.5"/>{vals.map((v,i)=>{const [x,y]=toPoint(i,v);return <circle key={i} cx={x} cy={y} r="3" fill={stroke}/>;})}</g>);
   };
@@ -68,31 +85,45 @@ const menuItems = [
   { label: "Log Out", url: "/logout" },
 ];
 
-function radarFromAssessment({ strengths=[], weaknesses=[] }){
-  const L = ["Programming","Networking","Database","Web & System Dev","Soft Skills","Extracurricular"];
-  const has = (arr, key) => arr.some(t => t.toLowerCase().includes(key));
-  const s = [
-    has(strengths,"programming")?5:2,
-    has(strengths,"networking")?5:2,
-    has(strengths,"database")?5:2,
-    has(strengths,"web/system")||has(strengths,"web/system development")?5:2,
-    has(strengths,"communication")||has(strengths,"teamwork")||has(strengths,"soft")?5:2,
-    has(strengths,"extracurricular")?5:2,
+function radarFromAssessment({ strengths = [], weaknesses = [] }: { strengths: string[]; weaknesses: string[] }) {
+  const L = ["Programming", "Networking", "Database", "Web & System Dev", "Soft Skills", "Extracurricular"];
+  const has = (arr: string[], key: string) => arr.some(t => t.toLowerCase().includes(key));
+  const s: number[] = [
+    has(strengths, "programming") ? 5 : 2,
+    has(strengths, "networking") ? 5 : 2,
+    has(strengths, "database") ? 5 : 2,
+    has(strengths, "web/system") || has(strengths, "web/system development") ? 5 : 2,
+    has(strengths, "communication") || has(strengths, "teamwork") || has(strengths, "soft") ? 5 : 2,
+    has(strengths, "extracurricular") ? 5 : 2,
   ];
-  const w = [
-    has(weaknesses,"programming")?5:1,
-    has(weaknesses,"networking")?5:1,
-    has(weaknesses,"database")?5:1,
-    has(weaknesses,"web/system")||has(weaknesses,"web/system development")?5:1,
-    has(weaknesses,"communication")||has(weaknesses,"teamwork")||has(weaknesses,"soft")?5:1,
-    has(weaknesses,"extracurricular")?5:1,
+  const w: number[] = [
+    has(weaknesses, "programming") ? 5 : 1,
+    has(weaknesses, "networking") ? 5 : 1,
+    has(weaknesses, "database") ? 5 : 1,
+    has(weaknesses, "web/system") || has(weaknesses, "web/system development") ? 5 : 1,
+    has(weaknesses, "communication") || has(weaknesses, "teamwork") || has(weaknesses, "soft") ? 5 : 1,
+    has(weaknesses, "extracurricular") ? 5 : 1,
   ];
-  return { labels:L, strengths:s, weaknesses:w };
+  return { labels: L, strengths: s, weaknesses: w };
+}
+
+interface Prediction {
+  label: string;
+  index: number;
+  proba: Record<string, number>;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+interface Student {
+  id: number;
+  first_name?: string;
+  // add other properties as needed
 }
 
 export default function StudentDashboard(){
-  const [prediction, setPrediction] = useState(null);
-  const [student, setStudent] = useState(null);
+  const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const [student, setStudent] = useState<Student | null>(null);
   const navigate = useNavigate();
 
   const studentIdRaw = typeof window !== "undefined" ? localStorage.getItem("user_id") : null;
@@ -140,7 +171,7 @@ export default function StudentDashboard(){
         <StudentSidebar
           menuItems={menuItems}
           active={"Dashboard"}
-          onSelect={(item) => {
+          onSelect={(item: string) => {
             if(item==="Predict") navigate("/predict");
           }}
           onLogout={handleLogout}

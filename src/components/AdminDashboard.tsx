@@ -1,5 +1,4 @@
-// AdminDashboard.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type JSX } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import {
   ResponsiveContainer,
@@ -7,10 +6,47 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "./Sidebar";
+import Sidebar from "./SideBar";
 import { FiBarChart2, FiUsers, FiTrendingUp, FiCheckCircle, FiFilter } from "react-icons/fi";
 
 const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.pike.replit.dev";
+
+/* ---------- Types ---------- */
+type CountRow = { label: string; n: number };
+type BarDatum = { name: string; value: number };
+
+
+type KPIs = {
+  total_predictions: number;
+  time_period_label: string;
+};
+
+type Bars = {
+  extracurricular: CountRow[];
+  time_period: CountRow[];
+  living: CountRow[];
+};
+
+type Pies = {
+  latin_honors: CountRow[];
+  awards: CountRow[];
+  failed_grade: CountRow[];
+};
+
+type FiltersResponse = {
+  years?: number[];
+  specializations?: string[];
+  locations?: string[];
+};
+
+type OverviewResponse = {
+  kpis?: KPIs;
+  bars?: Bars;
+  pies?: Pies;
+  error?: string;
+};
+
+type MenuItem = { label: string; url: string };
 
 /* ---------- Global ---------- */
 const GlobalStyle = createGlobalStyle`
@@ -71,27 +107,30 @@ const ChartWrap = styled.div` width:100%; height:320px; `;
 /* ---------- Utils ---------- */
 const donutColors = ["#ffa94d", "#ff6b6b", "#5f27cd", "#00b894", "#74c0fc", "#fcc419"];
 
-const toBarData = (rows) => (rows || []).map(r => ({ name: r.label || "Unknown", value: Number(r.n || 0) }));
-const toPieData = (rows) => (rows || []).map(r => ({ name: r.label || "Unknown", value: Number(r.n || 0) }));
+const toBarData = (rows?: CountRow[]): BarDatum[] =>
+  (rows ?? []).map((r) => ({ name: r?.label ?? "Unknown", value: Number(r?.n ?? 0) }));
+
+const toPieData = (rows?: CountRow[]): BarDatum[] =>
+  (rows ?? []).map((r) => ({ name: r?.label ?? "Unknown", value: Number(r?.n ?? 0) }));
 
 /* ---------- Component ---------- */
-export default function AdminDashboard() {
-  const [active, setActive] = useState("Dashboard");
+export default function AdminDashboard(): JSX.Element {
+  const [active, setActive] = useState<string>("Dashboard");
   const navigate = useNavigate();
 
   // slicers
-  const [years, setYears] = useState([]);
-  const [specs, setSpecs] = useState([]);
-  const [locs, setLocs] = useState([]);
-  const [year, setYear] = useState("");
-  const [spec, setSpec] = useState("");
-  const [loc, setLoc] = useState("");
+  const [years, setYears] = useState<number[]>([]);
+  const [specs, setSpecs] = useState<string[]>([]);
+  const [locs, setLocs] = useState<string[]>([]);
+  const [year, setYear] = useState<string>("");
+  const [spec, setSpec] = useState<string>("");
+  const [loc, setLoc] = useState<string>("");
 
   // data
-  const [loading, setLoading] = useState(false);
-  const [kpis, setKpis] = useState({ total_predictions: 0, time_period_label: "All time" });
-  const [bars, setBars] = useState({ extracurricular: [], time_period: [], living: [] });
-  const [pies, setPies] = useState({ latin_honors: [], awards: [], failed_grade: [] });
+  const [loading, setLoading] = useState<boolean>(false);
+  const [kpis, setKpis] = useState<KPIs>({ total_predictions: 0, time_period_label: "All time" });
+  const [bars, setBars] = useState<Bars>({ extracurricular: [], time_period: [], living: [] });
+  const [pies, setPies] = useState<Pies>({ latin_honors: [], awards: [], failed_grade: [] });
 
   // auth guard (admin page)
   useEffect(() => {
@@ -105,13 +144,15 @@ export default function AdminDashboard() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/filters`);
-        const j = await res.json();
+        const j = (await res.json()) as FiltersResponse;
         if (res.ok) {
-          setYears(j.years || []);
-          setSpecs(j.specializations || []);
-          setLocs(j.locations || []);
+          setYears(j.years ?? []);
+          setSpecs(j.specializations ?? []);
+          setLocs(j.locations ?? []);
         }
-      } catch {}
+      } catch {
+        // noop
+      }
     })();
   }, []);
 
@@ -126,35 +167,63 @@ export default function AdminDashboard() {
         if (loc) params.set("location", loc);
 
         const res = await fetch(`${API_BASE}/admin/overview?${params.toString()}`);
-        const j = await res.json();
+        const j = (await res.json()) as OverviewResponse;
         if (!res.ok) throw new Error(j.error || "Failed to load overview");
 
-        setKpis(j.kpis || { total_predictions: 0, time_period_label: "All time" });
-        setBars(j.bars || { extracurricular: [], time_period: [], living: [] });
-        setPies(j.pies || { latin_honors: [], awards: [], failed_grade: [] });
+        setKpis(j.kpis ?? { total_predictions: 0, time_period_label: "All time" });
+        setBars(j.bars ?? { extracurricular: [], time_period: [], living: [] });
+        setPies(j.pies ?? { latin_honors: [], awards: [], failed_grade: [] });
       } catch (e) {
-        console.warn(e?.message || e);
+        const msg = e instanceof Error ? e.message : String(e);
+        // eslint-disable-next-line no-console
+        console.warn(msg);
       } finally {
         setLoading(false);
       }
     })();
   }, [year, spec, loc]);
 
-  const menuItems = [
-    { label: "Dashboard", url: "/admindashboard" },
-    { label: "Students", url: "/students" },
-    { label: "Manage Profile", url: "/profile" },
-    { label: "Predictions", url: "/predictionlist" },
-    { label: "Log Out", url: "/logout" },
-  ];
+  const menuItems: MenuItem[] = useMemo(
+    () => [
+      { label: "Dashboard", url: "/admindashboard" },
+      { label: "Students", url: "/students" },
+      { label: "Manage Profile", url: "/profile" },
+      { label: "Predictions", url: "/predictionlist" },
+      { label: "Log Out", url: "/logout" },
+    ],
+    []
+  );
 
   // prepared series
-  const dataExtracurricular = useMemo(() => toBarData(bars.extracurricular), [bars]);
-  const dataTimePeriod     = useMemo(() => toBarData(bars.time_period), [bars]);
-  const dataLiving         = useMemo(() => toBarData(bars.living), [bars]);
-  const pieLatin           = useMemo(() => toPieData(pies.latin_honors), [pies]);
-  const pieAwards          = useMemo(() => toPieData(pies.awards), [pies]);
-  const pieFailed          = useMemo(() => toPieData(pies.failed_grade), [pies]);
+  const dataExtracurricular = useMemo<BarDatum[]>(
+    () => toBarData(bars.extracurricular),
+    [bars]
+  );
+  const dataTimePeriod = useMemo<BarDatum[]>(
+    () => toBarData(bars.time_period),
+    [bars]
+  );
+  const dataLiving = useMemo<BarDatum[]>(
+    () => toBarData(bars.living),
+    [bars]
+  );
+  const pieLatin = useMemo<BarDatum[]>(
+    () => toPieData(pies.latin_honors),
+    [pies]
+  );
+  const pieAwards = useMemo<BarDatum[]>(
+    () => toPieData(pies.awards),
+    [pies]
+  );
+  const pieFailed = useMemo<BarDatum[]>(
+    () => toPieData(pies.failed_grade),
+    [pies]
+  );
+
+  const totalExtra = useMemo(
+    () => dataExtracurricular.reduce<number>((a, b) => a + (b?.value ?? 0), 0),
+    [dataExtracurricular]
+  );
 
   return (
     <>
@@ -163,7 +232,7 @@ export default function AdminDashboard() {
         <Sidebar
           menuItems={menuItems}
           active={active}
-          onSelect={(lbl) => setActive(lbl)}
+          onSelect={(lbl: string) => setActive(lbl)}
           onLogout={() => { localStorage.clear(); navigate("/login", { replace: true }); }}
         />
 
@@ -174,7 +243,7 @@ export default function AdminDashboard() {
 
             <select value={year} onChange={(e) => setYear(e.target.value)}>
               <option value="">Year (All)</option>
-              {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+              {years.map((y) => <option key={String(y)} value={String(y)}>{y}</option>)}
             </select>
 
             <select value={spec} onChange={(e) => setSpec(e.target.value)}>
@@ -210,7 +279,7 @@ export default function AdminDashboard() {
                 <div className="icon"><FiUsers size={22} /></div>
                 <div className="meta">
                   <div className="title">Students Count (Extracurricular)</div>
-                  <div className="value">{dataExtracurricular.reduce((a,b)=>a+b.value,0)}</div>
+                  <div className="value">{totalExtra}</div>
                 </div>
               </KpiCard>
               <KpiCard>

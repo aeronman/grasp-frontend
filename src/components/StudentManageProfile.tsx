@@ -1,7 +1,6 @@
-// StudentManageProfile.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, type JSX } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import StudentSidebar from "./StudentSidebar";
+import StudentSidebar from "./StudentSideBar";
 import { useNavigate } from "react-router-dom";
 
 /* ================= GLOBAL ================= */
@@ -77,8 +76,8 @@ const SectionBadge = styled.div`
   font-weight:700; font-size:13px; margin-bottom:12px;
 `;
 
-const Field = styled.label<{span?: number}>`
-  grid-column: span ${p=>p.span||4};
+const Field = styled.label<{ span?: number }>`
+  grid-column: span ${p=>p.span ?? 4};
   display:flex; flex-direction:column; gap:8px; font-size:12px; color:#111827;
   .label{font-weight:700; letter-spacing:.4px;}
   input,select{
@@ -88,7 +87,7 @@ const Field = styled.label<{span?: number}>`
 `;
 
 const Row = styled.div`display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;`;
-const Button = styled.button`
+const Button = styled.button<{ ghost?: boolean }>`
   border:0; border-radius:12px; padding:12px 16px; font-weight:800; cursor:pointer;
   background:${p=>p.ghost?'#fff':'#d55b00'}; color:${p=>p.ghost?'#374151':'#fff'};
   border:${p=>p.ghost?'2px solid #e5e7eb':'0'};
@@ -109,65 +108,88 @@ const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.
 const AVATAR_FALLBACKS = [
   "https://www.gravatar.com/avatar/?d=mp&s=320",
   "https://i.pravatar.cc/320?img=67",
-];
+] as const;
+
+type MenuItem = { label: string; url: string };
+type Role = "student" | "admin" | string;
 
 /* fields we keep ONLY in localStorage (not in DB) */
 const localOnlyKeys = [
-  // initial info
   "sex","dob","age","pob",
-  // address
   "street","lot","brgy","city",
-  // batch info
   "year_enrolled","expected_grad",
-];
+] as const;
+
+type LocalOnlyKey = typeof localOnlyKeys[number];
+
+type FormState = {
+  // DB-backed
+  student_no: string;
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  email_address: string;
+  year_level: string;
+  // local-only
+  sex: string;
+  dob: string;
+  age: string;
+  pob: string;
+  street: string;
+  lot: string;
+  brgy: string;
+  city: string;
+  year_enrolled: string;
+  expected_grad: string;
+};
 
 /* ================= COMPONENT ================= */
-export default function StudentManageProfile() {
+export default function StudentManageProfile(): JSX.Element {
   const navigate = useNavigate();
 
   // ---- base form ----
-  const [form, setForm] = useState({
-    // DB-backed (we send to API)
+  const [form, setForm] = useState<FormState>({
     student_no: "", first_name: "", middle_name: "", last_name: "",
     email_address: "", year_level: "",
-    // local-only
     sex: "", dob: "", age: "", pob: "",
     street: "", lot: "", brgy: "", city: "",
     year_enrolled: "", expected_grad: "",
   });
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState("");
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [toast, setToast] = useState<string>("");
+  const [error, setError] = useState<string>("");
 
-  const [avatarSrc, setAvatarSrc] = useState(AVATAR_FALLBACKS[0]);
-  const fileRef = useRef<HTMLInputElement|null>(null);
-  const toastTimer = useRef<any>(null);
+  const [avatarSrc, setAvatarSrc] = useState<string>(AVATAR_FALLBACKS[0]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
   // Logged-in user info
   const userIdRaw = typeof window !== "undefined" ? localStorage.getItem("user_id") : null;
   const studentUserId = userIdRaw ? Number(userIdRaw) : null;
-  const roleFromLS  = (typeof window !== "undefined" && localStorage.getItem("user_role"))  || "student";
-  const emailFromLS = (typeof window !== "undefined" && localStorage.getItem("user_email")) || "";
+  const roleFromLS: Role = (typeof window !== "undefined" && localStorage.getItem("user_role")) || "student";
+  const emailFromLS: string = (typeof window !== "undefined" && localStorage.getItem("user_email")) || "";
 
   const AVATAR_KEY = studentUserId ? `student_avatar_b64_${studentUserId}` : "student_avatar_b64";
   const LOCAL_PROFILE_KEY = studentUserId ? `student_profile_local_${studentUserId}` : "student_profile_local";
 
-  const setF = (k: string, v: any) => {
+  const setF = (k: keyof FormState | LocalOnlyKey, v: string) => {
     setForm(s => {
-      const next = { ...s, [k]: v };
-      if (localOnlyKeys.includes(k)) persistLocalOnly({ [k]: v });
+      const next = { ...s, [k]: v } as FormState;
+      if ((localOnlyKeys as readonly string[]).includes(k as string)) {
+        persistLocalOnly({ [k as LocalOnlyKey]: v });
+      }
       return next;
     });
   };
 
   /* ---------- localStorage helpers ---------- */
-  const loadLocalOnly = () => {
+  const loadLocalOnly = (): Partial<Record<LocalOnlyKey, string>> => {
     try { return JSON.parse(localStorage.getItem(LOCAL_PROFILE_KEY) || "{}"); }
     catch { return {}; }
   };
-  const persistLocalOnly = (partial: Record<string,string>) => {
+  const persistLocalOnly = (partial: Partial<Record<LocalOnlyKey, string>>) => {
     const cur = loadLocalOnly();
     const next = { ...cur, ...partial };
     localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(next));
@@ -212,7 +234,7 @@ export default function StudentManageProfile() {
         }
         // seed email from LS if still blank
         setForm(f => (!f.email_address && emailFromLS ? { ...f, email_address: emailFromLS } : f));
-      } catch (e:any) {
+      } catch (e) {
         console.warn(e);
         setError("Failed to load profile.");
       } finally {
@@ -224,9 +246,9 @@ export default function StudentManageProfile() {
   // auto hide toast
   useEffect(() => {
     if (!toast) return;
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 2500);
-    return () => toastTimer.current && clearTimeout(toastTimer.current);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(""), 2500);
+    return () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); };
   }, [toast]);
 
   /* ---------- actions ---------- */
@@ -254,12 +276,12 @@ export default function StudentManageProfile() {
       if (!res.ok) throw new Error(j.error || "Update failed");
 
       // snapshot local-only too
-      const snap: Record<string,string> = {};
+      const snap: Partial<Record<LocalOnlyKey, string>> = {};
       for (const k of localOnlyKeys) snap[k] = (form as any)[k] ?? "";
       persistLocalOnly(snap);
 
       setToast("Profile updated!");
-    } catch (e:any) {
+    } catch (e: any) {
       setError(e.message || "Update failed");
     } finally {
       setSaving(false);
@@ -284,7 +306,7 @@ export default function StudentManageProfile() {
     navigate("/login", { replace: true });
   };
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     { label: "Dashboard", url: "/student-dashboard" },
     { label: "Predict", url: "/predict" },
     { label: "Manage Profile", url: "/student-manage-profile" },
@@ -300,7 +322,12 @@ export default function StudentManageProfile() {
     <>
       <GlobalStyle/>
       <Shell>
-        <StudentSidebar menuItems={menuItems} active="Manage Profile" onLogout={handleLogout}/>
+        <StudentSidebar
+          menuItems={menuItems}
+          active="Manage Profile"
+          onSelect={() => { /* noop if required by Sidebar */ }}
+          onLogout={handleLogout}
+        />
         <Content>
           {/* ===== HEADER ===== */}
           <Card style={{paddingTop:28}}>
@@ -414,9 +441,9 @@ export default function StudentManageProfile() {
               <Button onClick={save} disabled={saving}>
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
-             
             </Row>
             {!!error && <div style={{marginTop:10, color:"#b91c1c", fontWeight:700}}>⚠ {error}</div>}
+            
           </Section>
         </Content>
       </Shell>

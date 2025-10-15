@@ -1,7 +1,7 @@
 // AdminManageProfile.jsx
 import React, { useEffect, useRef, useState } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import Sidebar from "./Sidebar";
+import Sidebar from "./SideBar";
 import { useNavigate } from "react-router-dom";
 
 /* =============== GLOBAL STYLES =============== */
@@ -82,7 +82,11 @@ const SectionBadge = styled.div`
   font-size:13px;
   margin-bottom:12px;           /* sits inside the rectangle */
 `;
-const Field = styled.label`
+interface FieldProps {
+  span?: number;
+}
+
+const Field = styled.label<FieldProps>`
   grid-column: span ${p=>p.span||4};
   display:flex; flex-direction:column; gap:8px; font-size:12px; color:#111827;
   .label{font-weight:700; letter-spacing:.4px;}
@@ -93,7 +97,11 @@ const Field = styled.label`
 `;
 
 const Row = styled.div`display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;`;
-const Button = styled.button`
+interface ButtonProps {
+  ghost?: boolean;
+}
+
+const Button = styled.button<ButtonProps>`
   border:0; border-radius:12px; padding:12px 16px; font-weight:800; cursor:pointer;
   background:${p=>p.ghost?'#fff':'#d55b00'}; color:${p=>p.ghost?'#374151':'#fff'};
   border:${p=>p.ghost?'2px solid #e5e7eb':'0'};

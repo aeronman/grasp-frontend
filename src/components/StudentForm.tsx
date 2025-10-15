@@ -1,7 +1,7 @@
 // StudentFormWithClustering.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import StudentSidebar from "./StudentSidebar";
+import StudentSidebar from "./StudentSideBar";
 import { useNavigate, Link } from "react-router-dom";
 
 /* =================== Global / Layout =================== */
@@ -19,7 +19,7 @@ const Grid = styled.div`
   display:grid;grid-template-columns:repeat(12,1fr);gap:12px;
   @media(max-width:1024px){grid-template-columns:1fr;}
 `;
-const Field = styled.label`
+const Field = styled.label<{ span?: number }>`
   grid-column: span ${p=>p.span||6};
   display:flex;flex-direction:column;gap:6px;font-size:13px;color:#374151;
   .label{font-weight:600;}
@@ -27,12 +27,12 @@ const Field = styled.label`
   small{color:#6b7280}
 `;
 const Row = styled.div`display:flex;gap:10px;flex-wrap:wrap;`;
-const Button = styled.button`
+const Button = styled.button<{ $ghost?: boolean }>`
   border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;
   box-shadow:0 8px 30px rgba(15,27,40,0.05);
-  background:${p=>p.ghost?'#fff':'#d55b00'};
-  color:${p=>p.ghost?'#374151':'#fff'};
-  border:${p=>p.ghost?'1px solid #e5e7eb':'0'};
+  background:${p=>p.$ghost?'#fff':'#d55b00'};
+  color:${p=>p.$ghost?'#374151':'#fff'};
+  border:${p=>p.$ghost?'1px solid #e5e7eb':'0'};
   &:disabled{opacity:.6; cursor:not-allowed}
 `;
 const ResultRow = styled.div`
@@ -44,7 +44,7 @@ const List = styled.ul`
   list-style:none; padding-left:0; margin:8px 0 0 0;
   li{display:flex; align-items:flex-start; gap:8px; margin:6px 0;}
 `;
-const Dot = styled.span`
+const Dot = styled.span<{ bad?: boolean }>`
   width:8px; height:8px; border-radius:999px; margin-top:6px;
   background:${p=>p.bad ? "#ef4444" : "#10b981"};
 `;
@@ -72,13 +72,13 @@ function RadarChart({ size=300, labels=[], strengths=[], weaknesses=[] }) {
   const cx = size/2, cy = size/2;
   const N = labels.length || 1;
 
-  const toPoint = (idx, val) => {
+  const toPoint = (idx: number, val: number) => {
     const angle = (Math.PI * 2 * idx / N) - Math.PI/2;
     const rr = (val/5) * r;
     return [cx + rr * Math.cos(angle), cy + rr * Math.sin(angle)];
   };
 
-  const polygon = (vals, stroke, fill) => {
+  const polygon = (vals: any[], stroke: string | undefined, fill: string | undefined) => {
     const pts = vals.map((v, i)=>toPoint(i, v)).map(([x,y])=>`${x},${y}`).join(" ");
     return (
       <g>
@@ -153,7 +153,13 @@ const GRADE_VALUES = [
   "5.00",
 ];
 
-function GradeSelect({ value, onChange }) {
+function GradeSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <select value={value || ""} onChange={(e) => onChange(e.target.value)}>
       <option value="">Select…</option>
@@ -173,31 +179,31 @@ const menuItems = [
   { label: "Log Out", url: "/logout" },
 ];
 
-function avg(grades) {
+function avg(grades: any[]) {
   const nums = grades.map(Number).filter(v => !isNaN(v));
   if (nums.length === 0) return "";
   const sum = nums.reduce((a, b) => a + b, 0);
   return (sum / nums.length).toFixed(2);
 }
-function softComposite(arr){
+function softComposite(arr: string | any[]){
   const n=arr.length;
   if(n>=9) return {score:n,level:"Advanced"};
   if(n>=5) return {score:n,level:"Developing"};
   return {score:n,level:"Foundational"};
 }
-function extraCluster(arr){
+function extraCluster(arr: any[]){
   const a = arr.filter(x => x && x !== "None");
   const n=a.length;
   if(n<=0) return "No Participation";
   if(n===1) return "Single Extracurricular";
   return "Multiple Extracurricular";
 }
-function resolveHousing(basis){
+function resolveHousing(basis: string){
   const s=(basis||"").toLowerCase();
   if(s.includes("boarding")||s.includes("dorm")||s.includes("bedspace")||s.includes("rented")||s.includes("apartment")||s.includes("condo")) return "Temporary Housing";
   return "Permanent Housing";
 }
-function splitCerts(text){
+function splitCerts(text: string){
   return (text||"")
     .split(",")
     .map(x=>x.trim())
@@ -207,7 +213,7 @@ function splitCerts(text){
 /* Map strengths/weakness strings -> category scores for radar (0..5) */
 function radarFromAssessment({ strengths=[], weaknesses=[] }){
   const L = ["Programming","Networking","Database","Web & System Dev","Soft Skills","Extracurricular"];
-  const has = (arr, key) => arr.some(t => t.toLowerCase().includes(key));
+  const has = (arr: any[], key: string) => arr.some(t => t.toLowerCase().includes(key));
 
   const strengthVals = [
     has(strengths, "programming") ? 5 : 2,
@@ -232,7 +238,45 @@ function radarFromAssessment({ strengths=[], weaknesses=[] }){
 
 /* =================== Component =================== */
 export default function StudentFormWithClustering(){
-  const [form, setForm] = useState({
+  type StudentFormState = {
+    student_no: string;
+    first_name: string;
+    middle_name: string;
+    last_name: string;
+    age: string;
+    gender: string;
+    location: string;
+    living_basis: string;
+    awards: string;
+    specialization_track: string;
+    latin_honors: string;
+    failed_grade: string;
+    dropped_subjects: string;
+    monthly_income_status: string;
+    certification_text: string;
+    extracurricular: string[];
+    soft_skills: string[];
+    it105: string;
+    it203: string;
+    it207: string;
+    it204: string;
+    it106: string;
+    it210: string;
+    it202: string;
+    it206: string;
+    it303: string;
+    it304: string;
+    it310: string;
+    it102: string;
+    it104: string;
+    it306: string;
+    it307: string;
+    it311: string;
+    it312: string;
+    [key: string]: any; // <-- Add index signature
+  };
+
+  const [form, setForm] = useState<StudentFormState>({
     student_no:"", first_name:"", middle_name:"", last_name:"", age:"", gender:"",
     location:"", living_basis:"", awards:"No", specialization_track:"", latin_honors:"No",
     failed_grade:"No",
@@ -252,9 +296,17 @@ export default function StudentFormWithClustering(){
   const [saving, setSaving] = useState(false);
   const [predicting, setPredicting] = useState(false);
   const [savedStudent, setSavedStudent] = useState(null);
-  const [prediction, setPrediction] = useState(null);
+  type Prediction = {
+    prediction_index: number;
+    prediction_label: string;
+    proba_json: Record<string, number>;
+    strengths: string[];
+    weaknesses: string[];
+    note?: string;
+  };
+  const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [error, setError] = useState("");
-  const [existingPrediction, setExistingPrediction] = useState(null);
+  const [existingPrediction, setExistingPrediction] = useState<{ prediction_index: number } | null>(null);
   const [active, setActive] = useState("Predict");
   const navigate = useNavigate();
 
@@ -298,8 +350,8 @@ export default function StudentFormWithClustering(){
           if (predJson?.prediction) {
             setExistingPrediction(predJson.prediction);
             setPrediction({
-              prediction_index: predJson.prediction.pred_index,
-              prediction_label: predJson.prediction.pred_label,
+              prediction_index: predJson.prediction.prediction_index,
+              prediction_label: predJson.prediction.prediction_label,
               proba_json: predJson.prediction.proba_json || {},
               strengths: predJson.prediction.strengths || [],
               weaknesses: predJson.prediction.weaknesses || [],
@@ -313,7 +365,7 @@ export default function StudentFormWithClustering(){
     })();
   }, [studentId]);
 
-  const setF=(k,v)=>setForm(s=>({...s,[k]:v}));
+  const setF=(k: string,v: string)=>setForm(s=>({...s,[k]:v}));
 
   /* ========= Derived Averages ========= */
   const programming_avg = useMemo(()=>avg([form.it105, form.it203, form.it207, form.it204]),[form]);
@@ -328,7 +380,7 @@ export default function StudentFormWithClustering(){
   const soft_comp       = useMemo(()=>softComposite(form.soft_skills),[form.soft_skills]);
   const cert_yn         = splitCerts(form.certification_text).length ? "Yes" : "No";
 
-  const toggleInArray=(arrKey, value)=>{
+  const toggleInArray=(arrKey: string, value: unknown)=>{
     setForm(s=>{
       const arr = new Set(s[arrKey]);
       if(arr.has(value)) arr.delete(value); else arr.add(value);
@@ -384,7 +436,13 @@ export default function StudentFormWithClustering(){
       const j = await res.json();
       if(!res.ok) throw new Error(j.error || "Save failed");
       setSavedStudent(j.student);
-    }catch(err){ setError(err.message || String(err)); }
+    }catch(err){
+      if (typeof err === "object" && err !== null && "message" in err) {
+        setError(String((err as { message?: string }).message));
+      } else {
+        setError(String(err));
+      }
+    }
     finally{ setSaving(false); }
   };
 
@@ -414,9 +472,9 @@ export default function StudentFormWithClustering(){
         weaknesses: j.weaknesses || [],
         note: j.note || "saved_prediction",
       });
-      setExistingPrediction({ pred_index: j.prediction_index });
+      setExistingPrediction({ prediction_index: j.prediction_index });
     } catch (err) {
-      setError(err.message || String(err));
+      setError(typeof err === "object" && err !== null && "message" in err ? String((err as { message?: string }).message) : String(err));
     } finally {
       setPredicting(false);
     }
@@ -577,10 +635,10 @@ export default function StudentFormWithClustering(){
         <Button onClick={save} disabled={saveDisabled}>
           {saving ? "Saving..." : savedStudent ? "Saved" : "Save"}
         </Button>
-        <Button ghost onClick={predictOnce} disabled={predictDisabled}>
+        <Button $ghost onClick={predictOnce} disabled={predictDisabled}>
           {predicting ? "Predicting..." : existingPrediction ? "Predicted" : "Predict (one-time)"}
         </Button>
-        <Button ghost as={Link} to="/student-dashboard">Go to Dashboard</Button>
+        <Button $ghost as={Link} to="/student-dashboard">Go to Dashboard</Button>
       </Row>
 
       {!!savedStudent && !existingPrediction && (
@@ -651,7 +709,7 @@ export default function StudentFormWithClustering(){
               ) : <Muted>—</Muted>}
 
               <div style={{marginTop:16}}>
-                <Button ghost as={Link} to="/student-dashboard">Open Student Dashboard</Button>
+                <Button $ghost as={Link} to="/student-dashboard">Open Student Dashboard</Button>
               </div>
             </div>
           </FlexSplit>
@@ -668,11 +726,13 @@ export default function StudentFormWithClustering(){
     <>
       <GlobalStyle/>
       <Shell>
-        <StudentSidebar
+       <StudentSidebar
           menuItems={menuItems}
           active={"Predict"}
+          onSelect={() => {}}     // <-- add this
           onLogout={handleLogout}
         />
+
         <Content>
           {!shouldHideForm && FormCard}
           {ResultsCard}
