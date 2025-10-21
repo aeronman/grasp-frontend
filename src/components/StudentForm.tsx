@@ -1,5 +1,5 @@
-// StudentFormWithClustering.jsx
-import { useEffect, useMemo, useState } from "react";
+// StudentFormWithClustering.tsx
+import React, { useEffect, useMemo, useState } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import StudentSidebar from "./StudentSideBar";
 import { useNavigate, Link } from "react-router-dom";
@@ -15,30 +15,45 @@ const Content = styled.main`flex:1; padding:24px; max-width:1200px; margin:0 aut
 const Card = styled.div`background:#fff;border-radius:14px;padding:22px;box-shadow:0 8px 30px rgba(15,27,40,0.05);margin-bottom:16px;`;
 const H = styled.h2`margin:0 0 8px;`;
 const SubH = styled.h3`margin:10px 0 12px;font-size:16px;color:#1f2937;`;
+
 const Grid = styled.div`
   display:grid;grid-template-columns:repeat(12,1fr);gap:12px;
   @media(max-width:1024px){grid-template-columns:1fr;}
 `;
-const Field = styled.label<{ span?: number }>`
-  grid-column: span ${p=>p.span||6};
+
+/** Use transient prop ($span) to avoid React DOM warnings */
+const Field = styled.label<{ $span?: number }>`
+  grid-column: span ${(p) => p.$span || 6};
   display:flex;flex-direction:column;gap:6px;font-size:13px;color:#374151;
   .label{font-weight:600;}
-  input,select,textarea{padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px;}
+  input,select,textarea{
+    padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px; background:#fff;
+    height:40px;
+  }
+  textarea{height:auto; min-height:90px; resize:vertical;}
   small{color:#6b7280}
 `;
+
+const InputCompact = styled.input`
+  padding:8px 12px!important; max-width:200px; height:40px!important;
+`;
+const InputTiny = styled.input`
+  padding:8px 12px!important; max-width:120px; height:40px!important; text-align:center;
+`;
+
 const Row = styled.div`display:flex;gap:10px;flex-wrap:wrap;`;
 const Button = styled.button<{ $ghost?: boolean }>`
   border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;
   box-shadow:0 8px 30px rgba(15,27,40,0.05);
-  background:${p=>p.$ghost?'#fff':'#d55b00'};
-  color:${p=>p.$ghost?'#374151':'#fff'};
-  border:${p=>p.$ghost?'1px solid #e5e7eb':'0'};
+  background:${(p)=>p.$ghost?'#fff':'#d55b00'};
+  color:${(p)=>p.$ghost?'#374151':'#fff'};
+  border:${(p)=>p.$ghost?'1px solid #e5e7eb':'0'};
   &:disabled{opacity:.6; cursor:not-allowed}
 `;
+
 const ResultRow = styled.div`
   display:flex; align-items:center; gap:12px; flex-wrap:wrap;
   .pill{background:#eef2ff;color:#1f2a5a;border-radius:999px;padding:6px 10px;font-weight:700}
-  .muted{color:#6b7280}
 `;
 const List = styled.ul`
   list-style:none; padding-left:0; margin:8px 0 0 0;
@@ -46,7 +61,7 @@ const List = styled.ul`
 `;
 const Dot = styled.span<{ bad?: boolean }>`
   width:8px; height:8px; border-radius:999px; margin-top:6px;
-  background:${p=>p.bad ? "#ef4444" : "#10b981"};
+  background:${(p)=>p.bad ? "#ef4444" : "#10b981"};
 `;
 const BarWrap = styled.div`display:grid; gap:8px; margin-top:8px;`;
 const Bar = styled.div`
@@ -61,56 +76,53 @@ const FlexSplit = styled.div`
   @media(max-width:1024px){ grid-template-columns:1fr; }
 `;
 const Muted = styled.div`color:#6b7280;`;
+const Warn = styled.div`color:#b91c1c; font-weight:700; margin-top:6px;`;
 
-/* Simple web/radar chart (SVG, no deps) */
+/* =================== Radar (compact) =================== */
 const RadarBox = styled.div`
   background:#fafafa; border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:10px;
 `;
-function RadarChart({ size=300, labels=[], strengths=[], weaknesses=[] }) {
+type RadarChartProps = { size?: number; labels: string[]; strengths: number[]; weaknesses: number[]; };
+function RadarChart({ size=300, labels=[], strengths=[], weaknesses=[] }: RadarChartProps) {
   const pad = 24;
   const r = (size - pad*2) / 2;
   const cx = size/2, cy = size/2;
   const N = labels.length || 1;
-
   const toPoint = (idx: number, val: number) => {
     const angle = (Math.PI * 2 * idx / N) - Math.PI/2;
     const rr = (val/5) * r;
     return [cx + rr * Math.cos(angle), cy + rr * Math.sin(angle)];
   };
-
-  const polygon = (vals: any[], stroke: string | undefined, fill: string | undefined) => {
+  const polygon = (vals: number[], stroke: string, fill: string) => {
     const pts = vals.map((v, i)=>toPoint(i, v)).map(([x,y])=>`${x},${y}`).join(" ");
     return (
       <g>
-        <polygon points={pts} fill={fill} stroke={stroke} strokeWidth="2" opacity="0.5"/>
+        <polygon points={pts} fill={fill} stroke={stroke} strokeWidth={2} opacity={0.5}/>
         {vals.map((v,i)=>{
           const [x,y]=toPoint(i,v);
-          return <circle key={i} cx={x} cy={y} r="3" fill={stroke} />;
+          return <circle key={i} cx={x} cy={y} r={3} fill={stroke} />;
         })}
       </g>
     );
   };
-
   const rings = [1,2,3,4,5].map(k=>(<circle key={k} cx={cx} cy={cy} r={(k/5)*r} fill="none" stroke="#e5e7eb"/>));
-
   const spokeEls = labels.map((lab,i)=>{
     const [x,y] = toPoint(i, 5.4);
+    const [xt, yt] = toPoint(i, 5);
     return (
       <g key={i}>
-        <line x1={cx} y1={cy} x2={toPoint(i,5)[0]} y2={toPoint(i,5)[1]} stroke="#e5e7eb"/>
-        <text x={x} y={y} textAnchor="middle" fontSize="11" fill="#374151">{lab}</text>
+        <line x1={cx} y1={cy} x2={xt} y2={yt} stroke="#e5e7eb"/>
+        <text x={x} y={y} textAnchor="middle" fontSize={11} fill="#374151">{lab}</text>
       </g>
     );
   });
-
   return (
     <svg width="100%" height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Strengths/weaknesses radar">
       <g>
-        {rings}
-        {spokeEls}
+        {rings}{spokeEls}
         {polygon(weaknesses, "#ef4444", "#fecaca")}
         {polygon(strengths, "#10b981", "#bbf7d0")}
-        <circle cx={cx} cy={cy} r="2" fill="#6b7280" />
+        <circle cx={cx} cy={cy} r={2} fill="#6b7280" />
       </g>
     </svg>
   );
@@ -123,18 +135,18 @@ const EXTRACURR = [
   "Cultural Performer",
   "Student Council (e.g., Student Government, etc.)",
   "Publication (e.g., CURSOR Publication, Pacesetter, etc.)",
-];
+] as const;
 
 const SOFT_SKILLS = [
   "Verbal Communication","Written Communication","Critical Thinking","Leadership",
   "Time Management","Problem-Solving Skills","Networking","Collaboration",
   "Ethical Judgment","Stress Management","Socializing / Interpersonal Skills","Adaptability and Flexibility",
-];
+] as const;
 
-const yesno = ["Yes","No"];
-const spec = ["Business Analytics","Web and Mobile Application Development","Service Management"];
-const gender = ["Male","Female"];
-const locationOpts = ["Inside of Bulacan","Outside of Bulacan"];
+const yesno = ["Yes","No"] as const;
+const spec = ["Business Analytics","Web and Mobile Application Development","Service Management"] as const;
+const gender = ["Male","Female"] as const;
+const locationOpts = ["Inside of Bulacan","Outside of Bulacan"] as const;
 const income = [
   "Poor (Less than 10,956)",
   "Low-Income (10,957 - 21,194)",
@@ -143,34 +155,56 @@ const income = [
   "Upper-Middle Income (76,670 - 131,484)",
   "Upper-Income (131,485 - 219,140)",
   "Rich (219,141 and above)"
-];
-const housingBasis = ["Own/Parents/Relative","Boarding/Dorm/Bedspace","Rented Apartment/Condo"];
+] as const;
+const housingBasis = ["Own/Parents/Relative","Boarding/Dorm/Bedspace","Rented Apartment/Condo"] as const;
 const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.pike.replit.dev";
 
-/* ===== Grade dropdown values: 1.00–3.00 (step .25) then 5.00 ===== */
-const GRADE_VALUES = [
-  ...Array.from({ length: 9 }, (_, i) => (1 + i * 0.25).toFixed(2)), // 1.00..3.00
-  "5.00",
-];
+/* ===== Grade dropdown values: 1.00–3.00 only (step .25) ===== */
+const GRADE_VALUES: string[] = Array.from({ length: 9 }, (_, i) => (1 + i * 0.25).toFixed(2));
 
-function GradeSelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
+/** prettier, consistent select */
+const NiceSelect = styled.select`
+  width:100%; height:44px; padding:10px 12px; border:1px solid #d6dae1; border-radius:10px;
+  background:#fff; font-size:14px; appearance:none;
+  background-image: linear-gradient(45deg, transparent 50%, #6b7280 50%),
+                    linear-gradient(135deg, #6b7280 50%, transparent 50%),
+                    linear-gradient(to right, #fff, #fff);
+  background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px), 100% 0;
+  background-size: 5px 5px, 5px 5px, 2.5em 2.5em;
+  background-repeat: no-repeat;
+`;
+type GradeSelectProps = { value: string; onChange: (v: string)=>void; label: string; };
+function GradeSelect({ value, onChange, label }: GradeSelectProps) {
   return (
-    <select value={value || ""} onChange={(e) => onChange(e.target.value)}>
+    <NiceSelect aria-label={label} value={value || ""} onChange={(e) => onChange(e.target.value)}>
       <option value="">Select…</option>
-      {GRADE_VALUES.map((g) => (
-        <option key={g} value={g}>
-          {g}
-        </option>
-      ))}
-    </select>
+      {GRADE_VALUES.map((g) => <option key={g} value={g}>{g}</option>)}
+    </NiceSelect>
   );
 }
+
+/* Course descriptions */
+const COURSE_DESC: Record<string,string> = {
+  IT102: "Introduction to Computing",
+  IT104: "Hardware System and Servicing",
+  IT103: "Computer Programming 1",
+  IT105: "Computer Programming 2",
+  IT106: "Networking 1",
+  IT210: "Networking 2",
+  IT201: "Data Structures and Algorithms",
+  IT202: "Information Management",
+  IT203: "Object-Oriented Programming 1",
+  IT207: "Object-Oriented Programming 2",
+  IT204: "Integrative Programming and Technologies",
+  IT206: "Advanced Database Systems",
+  IT303: "System Analysis and Design",
+  IT304: "Web Systems and Technologies 1",
+  IT310: "Web Systems and Technologies 2",
+  IT306: "Elective 1",
+  IT307: "Elective 2",
+  IT311: "Elective 3",
+  IT312: "Elective 4",
+};
 
 const menuItems = [
   { label: "Dashboard", url: "/student-dashboard" },
@@ -179,21 +213,23 @@ const menuItems = [
   { label: "Log Out", url: "/logout" },
 ];
 
-function avg(grades: any[]) {
-  const nums = grades.map(Number).filter(v => !isNaN(v));
+function avg(values: Array<string | number | undefined | null>) {
+  const nums = values
+    .map((v) => (typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : NaN))
+    .filter((v) => !isNaN(v));
   if (nums.length === 0) return "";
   const sum = nums.reduce((a, b) => a + b, 0);
   return (sum / nums.length).toFixed(2);
 }
-function softComposite(arr: string | any[]){
+function softComposite(arr: string[]){
   const n=arr.length;
-  if(n>=9) return {score:n,level:"Advanced"};
-  if(n>=5) return {score:n,level:"Developing"};
-  return {score:n,level:"Foundational"};
+  if(n>=9) return {score:n,level:"Advanced" as const};
+  if(n>=5) return {score:n,level:"Developing" as const};
+  return {score:n,level:"Foundational" as const};
 }
-function extraCluster(arr: any[]){
+function extraCluster(arr: string[]){
   const a = arr.filter(x => x && x !== "None");
-  const n=a.length;
+  const n = a.length;
   if(n<=0) return "No Participation";
   if(n===1) return "Single Extracurricular";
   return "Multiple Extracurricular";
@@ -204,17 +240,13 @@ function resolveHousing(basis: string){
   return "Permanent Housing";
 }
 function splitCerts(text: string){
-  return (text||"")
-    .split(",")
-    .map(x=>x.trim())
-    .filter(Boolean);
+  return (text||"").split(",").map(x=>x.trim()).filter(Boolean);
 }
 
-/* Map strengths/weakness strings -> category scores for radar (0..5) */
-function radarFromAssessment({ strengths=[], weaknesses=[] }){
+/* Radar mapping */
+function radarFromAssessment({ strengths=[], weaknesses=[] }:{ strengths?: string[]; weaknesses?: string[] }){
   const L = ["Programming","Networking","Database","Web & System Dev","Soft Skills","Extracurricular"];
-  const has = (arr: any[], key: string) => arr.some(t => t.toLowerCase().includes(key));
-
+  const has = (arr: string[], key: string) => arr.some(t => t.toLowerCase().includes(key));
   const strengthVals = [
     has(strengths, "programming") ? 5 : 2,
     has(strengths, "networking") ? 5 : 2,
@@ -223,7 +255,6 @@ function radarFromAssessment({ strengths=[], weaknesses=[] }){
     has(strengths, "communication") || has(strengths, "interpersonal") || has(strengths,"teamwork") || has(strengths,"soft") ? 5 : 2,
     has(strengths, "extracurricular") ? 5 : 2,
   ];
-
   const weaknessVals = [
     has(weaknesses, "programming") ? 5 : 1,
     has(weaknesses, "networking") ? 5 : 1,
@@ -232,59 +263,103 @@ function radarFromAssessment({ strengths=[], weaknesses=[] }){
     has(weaknesses, "communication") || has(weaknesses, "teamwork") || has(weaknesses,"soft") ? 5 : 1,
     has(weaknesses, "extracurricular") ? 5 : 1,
   ];
-
   return { labels: L, strengths: strengthVals, weaknesses: weaknessVals };
 }
 
-/* =================== Component =================== */
-export default function StudentFormWithClustering(){
-  type StudentFormState = {
-    student_no: string;
-    first_name: string;
-    middle_name: string;
-    last_name: string;
-    age: string;
-    gender: string;
-    location: string;
-    living_basis: string;
-    awards: string;
-    specialization_track: string;
-    latin_honors: string;
-    failed_grade: string;
-    dropped_subjects: string;
-    monthly_income_status: string;
-    certification_text: string;
-    extracurricular: string[];
-    soft_skills: string[];
-    it105: string;
-    it203: string;
-    it207: string;
-    it204: string;
-    it106: string;
-    it210: string;
-    it202: string;
-    it206: string;
-    it303: string;
-    it304: string;
-    it310: string;
-    it102: string;
-    it104: string;
-    it306: string;
-    it307: string;
-    it311: string;
-    it312: string;
-    [key: string]: any; // <-- Add index signature
-  };
+/* =================== Grade Section Layout =================== */
+const GradeCard = styled.div`
+  background:#fafafa; border-radius:12px; padding:16px; margin-top:12px;
+`;
+/** 4 equal columns; if there are 5 cells (4 courses + Avg), the Avg wraps neatly below */
+const GradeGrid = styled.div`
+  display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:16px;
+  @media (max-width: 900px){ grid-template-columns: 1fr; }
+`;
 
+const CourseCellWrap = styled.div`display:flex; flex-direction:column; gap:8px;`;
+const CourseLabel = styled.div`
+  font-weight:600; color:#374151; line-height:1.3;
+  min-height:36px; display:flex; align-items:flex-end;
+  overflow:hidden;
+`;
+
+const AvgCellWrap = styled(CourseCellWrap)``;
+const AvgInput = styled.input`
+  width:100%; height:44px; padding:10px 12px;
+  border:1px solid #d6dae1; border-radius:10px; background:#fff;
+`;
+
+type GradeItem = { code: keyof typeof COURSE_DESC; value: string; set: (v: string)=>void };
+function CourseCell({ code, value, set }: GradeItem) {
+  return (
+    <CourseCellWrap>
+      <CourseLabel>{code} — {COURSE_DESC[code]}</CourseLabel>
+      <GradeSelect label={code} value={value} onChange={set} />
+    </CourseCellWrap>
+  );
+}
+type GradeSectionProps = { title: string; items: GradeItem[]; avgValue: string };
+function GradeSection({ title, items, avgValue }: GradeSectionProps) {
+  return (
+    <>
+      <SubH>{title}</SubH>
+      <GradeGrid>
+        {items.map((it) => <CourseCell key={it.code} {...it} />)}
+        <AvgCellWrap>
+          <CourseLabel>Avg</CourseLabel>
+          <AvgInput readOnly value={avgValue}/>
+        </AvgCellWrap>
+      </GradeGrid>
+    </>
+  );
+}
+
+/* =================== Types =================== */
+type YesNo = "Yes" | "No";
+type StudentFormState = {
+  student_no: string;
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  age: string;
+  gender: (typeof gender)[number] | "";
+  location: (typeof locationOpts)[number] | "";
+  living_basis: (typeof housingBasis)[number] | "";
+  awards: YesNo;
+  specialization_track: (typeof spec)[number] | "";
+  latin_honors: YesNo;
+  failed_grade: YesNo;
+  dropped_subjects: YesNo;
+  monthly_income_status: (typeof income)[number];
+  certification_text: string;
+  extracurricular: string[];
+  soft_skills: string[];
+  it105: string; it203: string; it207: string; it204: string;
+  it106: string; it210: string;
+  it202: string; it206: string;
+  it303: string; it304: string; it310: string;
+  it102: string; it104: string;
+  it306: string; it307: string; it311: string; it312: string;
+};
+type SavedStudent = { id: number } & Partial<Record<string, any>>;
+type Prediction = {
+  prediction_index: number;
+  prediction_label: string;
+  proba_json: Record<string, number>;
+  strengths: string[];
+  weaknesses: string[];
+  note?: string;
+};
+
+/* =================== Component =================== */
+const StudentFormWithClustering: React.FC = () => {
   const [form, setForm] = useState<StudentFormState>({
     student_no:"", first_name:"", middle_name:"", last_name:"", age:"", gender:"",
     location:"", living_basis:"", awards:"No", specialization_track:"", latin_honors:"No",
-    failed_grade:"No",
-    dropped_subjects:"No",
+    failed_grade:"No", dropped_subjects:"No",
     monthly_income_status: income[1],
     certification_text:"",
     extracurricular: [], soft_skills: [],
-    // Courses (now use dropdown values like "1.00", "1.25", ...)
     it105:"", it203:"", it207:"", it204:"",
     it106:"", it210:"",
     it202:"", it206:"",
@@ -295,18 +370,11 @@ export default function StudentFormWithClustering(){
 
   const [saving, setSaving] = useState(false);
   const [predicting, setPredicting] = useState(false);
-  const [savedStudent, setSavedStudent] = useState(null);
-  type Prediction = {
-    prediction_index: number;
-    prediction_label: string;
-    proba_json: Record<string, number>;
-    strengths: string[];
-    weaknesses: string[];
-    note?: string;
-  };
+  const [savedStudent, setSavedStudent] = useState<SavedStudent | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [error, setError] = useState("");
   const [existingPrediction, setExistingPrediction] = useState<{ prediction_index: number } | null>(null);
+  const [latinBlockMsg, setLatinBlockMsg] = useState("");
 
   const navigate = useNavigate();
 
@@ -324,18 +392,30 @@ export default function StudentFormWithClustering(){
         const stuJson = await stuRes.json();
         if (stuJson?.student) {
           setSavedStudent(stuJson.student);
-          const s = stuJson.student;
-          setForm(prev => ({ ...prev,
+          const s = stuJson.student as SavedStudent;
+
+          // Accept either array fields or JSON-string columns
+          const toArr = (rawA: unknown, rawJson?: string) => {
+            if (Array.isArray(rawA)) return rawA as string[];
+            try { return JSON.parse(rawJson || "[]"); } catch { return []; }
+          };
+
+          setForm(prev => ({
+            ...prev,
             student_no: s.student_no || "", first_name: s.first_name || "", middle_name: s.middle_name || "",
-            last_name: s.last_name || "", age: s.age || "", gender: s.gender || "",
-            location: s.location || "", living_basis: s.living_basis || "", awards: s.awards || "No",
-            specialization_track: s.specialization_track || "", latin_honors: s.latin_honors || "No",
-            failed_grade: s.failed_grade || "No",
-            monthly_income_status: s.monthly_income_status || income[1],
+            last_name: s.last_name || "", age: s.age || "", gender: (s.gender as StudentFormState["gender"]) || "",
+            location: (s.location as StudentFormState["location"]) || "", living_basis: (s.living_basis as StudentFormState["living_basis"]) || "",
+            awards: (s.awards as YesNo) || "No",
+            specialization_track: (s.specialization_track as StudentFormState["specialization_track"]) || "",
+            latin_honors: (s.latin_honors as YesNo) || "No",
+            failed_grade: (s.failed_grade as YesNo) || "No",
+            monthly_income_status: (s.monthly_income_status as StudentFormState["monthly_income_status"]) || income[1],
             certification_text: s.certification_text || "",
-            extracurricular: JSON.parse(s.extracurricular_json || "[]"),
-            soft_skills: JSON.parse(s.soft_skills_json || "[]"),
-            // ensure loaded grades are strings that match dropdown options
+
+            // Keep your arrays intact
+            extracurricular: toArr((s as any).extracurricular, s.extracurricular_json as string),
+            soft_skills: toArr((s as any).soft_skills, s.soft_skills_json as string),
+
             it105: s.it105 || "", it203: s.it203 || "", it207: s.it207 || "", it204: s.it204 || "",
             it106: s.it106 || "", it210: s.it210 || "",
             it202: s.it202 || "", it206: s.it206 || "",
@@ -345,18 +425,27 @@ export default function StudentFormWithClustering(){
           }));
 
           const sid = s.id;
-          const predRes = await fetch(`${API_BASE}/predictions/${sid}`);
-          const predJson = await predRes.json();
-          if (predJson?.prediction) {
-            setExistingPrediction(predJson.prediction);
-            setPrediction({
-              prediction_index: predJson.prediction.prediction_index,
-              prediction_label: predJson.prediction.prediction_label,
-              proba_json: predJson.prediction.proba_json || {},
-              strengths: predJson.prediction.strengths || [],
-              weaknesses: predJson.prediction.weaknesses || [],
-              note: "existing_prediction",
-            });
+          if (sid) {
+            const predRes = await fetch(`${API_BASE}/predictions/${sid}`);
+            const predJson = await predRes.json();
+            if (predJson?.prediction) {
+              const p = predJson.prediction as any;
+              // Robust fallback for different key names
+              const prediction_index =
+                p.prediction_index ?? p.index ?? p.predictionIndex ?? 0;
+              const prediction_label =
+                p.prediction_label ?? p.label ?? p.predictionLabel ?? "";
+
+              setExistingPrediction({ prediction_index });
+              setPrediction({
+                prediction_index,
+                prediction_label,
+                proba_json: p.proba_json || p.probaJson || {},
+                strengths: p.strengths || [],
+                weaknesses: p.weaknesses || [],
+                note: "existing_prediction",
+              });
+            }
           }
         }
       } catch (e) {
@@ -365,7 +454,17 @@ export default function StudentFormWithClustering(){
     })();
   }, [studentId]);
 
-  const setF=(k: string,v: string)=>setForm(s=>({...s,[k]:v}));
+  const setF = <K extends keyof StudentFormState>(k: K, v: StudentFormState[K]) =>
+    setForm((s) => ({ ...s, [k]: v }));
+
+  // Interactive chip toggler (keeps arrays)
+  const toggleInArray = (arrKey: "extracurricular" | "soft_skills", value: string) => {
+    setForm((s) => {
+      const set = new Set<string>(s[arrKey]);
+      if (set.has(value)) set.delete(value); else set.add(value);
+      return { ...s, [arrKey]: Array.from(set) };
+    });
+  };
 
   /* ========= Derived Averages ========= */
   const programming_avg = useMemo(()=>avg([form.it105, form.it203, form.it207, form.it204]),[form]);
@@ -378,15 +477,30 @@ export default function StudentFormWithClustering(){
   const extra_cluster   = useMemo(()=>extraCluster(form.extracurricular),[form.extracurricular]);
   const living_resolved = useMemo(()=>resolveHousing(form.living_basis),[form.living_basis]);
   const soft_comp       = useMemo(()=>softComposite(form.soft_skills),[form.soft_skills]);
-  const cert_yn         = splitCerts(form.certification_text).length ? "Yes" : "No";
 
-  const toggleInArray=(arrKey: string, value: unknown)=>{
-    setForm(s=>{
-      const arr = new Set(s[arrKey]);
-      if(arr.has(value)) arr.delete(value); else arr.add(value);
-      return {...s,[arrKey]: Array.from(arr)};
-    });
-  };
+  /* ===== Latin honors validation: block "Yes" if any grade > 2.50 ===== */
+  const anyGradeOver2_5 = useMemo(() => {
+    const vals = [
+      form.it105, form.it203, form.it207, form.it204,
+      form.it106, form.it210,
+      form.it202, form.it206,
+      form.it303, form.it304, form.it310,
+      form.it102, form.it104,
+      form.it306, form.it307, form.it311, form.it312,
+    ]
+      .map((x) => parseFloat(String(x)))
+      .filter((v) => !isNaN(v));
+    return vals.some((v) => v > 2.5);
+  }, [form]);
+
+  useEffect(() => {
+    if (anyGradeOver2_5 && form.latin_honors === "Yes") {
+      setLatinBlockMsg("Cannot select 'Yes' on Latin Honors if any grade < 2.50.");
+      setForm((s) => ({ ...s, latin_honors: "No" }));
+    } else {
+      setLatinBlockMsg("");
+    }
+  }, [anyGradeOver2_5, form.latin_honors, setForm]);
 
   const buildStudentPayload = () => {
     const graduate_on_time =
@@ -436,12 +550,8 @@ export default function StudentFormWithClustering(){
       const j = await res.json();
       if(!res.ok) throw new Error(j.error || "Save failed");
       setSavedStudent(j.student);
-    }catch(err){
-      if (typeof err === "object" && err !== null && "message" in err) {
-        setError(String((err as { message?: string }).message));
-      } else {
-        setError(String(err));
-      }
+    }catch(err: any){
+      setError(err?.message || String(err));
     }
     finally{ setSaving(false); }
   };
@@ -452,7 +562,7 @@ export default function StudentFormWithClustering(){
   };
 
   const predictOnce = async () => {
-    const sid = savedStudent?.id || studentId;
+    const sid = (savedStudent && savedStudent.id) || studentId;
     if (!sid) { setError("Missing student_id — save first or re-login."); return; }
     setError(""); setPredicting(true);
     try {
@@ -461,20 +571,26 @@ export default function StudentFormWithClustering(){
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: sid }),
       });
-      const j = await res.json();
+      const j: any = await res.json();
       if (!res.ok) throw new Error(j.error || "Prediction failed");
 
+      // Robust fallback for different key names
+      const prediction_index =
+        j.prediction_index ?? j.index ?? j.predictionIndex ?? 0;
+      const prediction_label =
+        j.prediction_label ?? j.label ?? j.predictionLabel ?? "";
+
       setPrediction({
-        prediction_index: j.prediction_index,
-        prediction_label: j.prediction_label,
-        proba_json: j.proba_json || {},
+        prediction_index,
+        prediction_label,
+        proba_json: j.proba_json || j.probaJson || {},
         strengths: j.strengths || [],
         weaknesses: j.weaknesses || [],
         note: j.note || "saved_prediction",
       });
-      setExistingPrediction({ prediction_index: j.prediction_index });
-    } catch (err) {
-      setError(typeof err === "object" && err !== null && "message" in err ? String((err as { message?: string }).message) : String(err));
+      setExistingPrediction({ prediction_index });
+    } catch (err: any) {
+      setError(err?.message || String(err));
     } finally {
       setPredicting(false);
     }
@@ -487,148 +603,219 @@ export default function StudentFormWithClustering(){
 
   /* ====== RENDER ====== */
 
-  const FormCard = (
+  const FormCardEl = (
     <Card>
       <H>Student Profile</H>
       <Grid>
-        <Field span={3}><span className="label">Student No.</span><input value={form.student_no} onChange={e=>setF('student_no',e.target.value)}/></Field>
-        <Field span={2}><span className="label">Age</span><input value={form.age} onChange={e=>setF('age',e.target.value)}/></Field>
-        <Field span={4}><span className="label">Gender</span>
-          <select value={form.gender} onChange={e=>setF('gender',e.target.value)}>
-            <option value="">Select...</option>{gender.map(g=><option key={g}>{g}</option>)}
-          </select>
+        <Field $span={3}><span className="label">Student No.</span><InputCompact value={form.student_no} onChange={e=>setF('student_no',e.target.value)}/></Field>
+        <Field $span={2}><span className="label">Age</span><InputTiny value={form.age} onChange={e=>setF('age',e.target.value)} /></Field>
+        <Field $span={4}><span className="label">Gender</span>
+          <NiceSelect value={form.gender} onChange={e=>setF('gender',e.target.value as StudentFormState["gender"])}>
+            <option value="">Select...</option>{gender.map(g=><option key={g} value={g}>{g}</option>)}
+          </NiceSelect>
         </Field>
 
-        <Field span={6}><span className="label">First Name</span><input value={form.first_name} onChange={e=>setF('first_name',e.target.value)}/></Field>
-        <Field span={3}><span className="label">Middle Name</span><input value={form.middle_name} onChange={e=>setF('middle_name',e.target.value)}/></Field>
-        <Field span={3}><span className="label">Last Name</span><input value={form.last_name} onChange={e=>setF('last_name',e.target.value)}/></Field>
+        <Field $span={6}><span className="label">First Name</span><input value={form.first_name} onChange={e=>setF('first_name',e.target.value)}/></Field>
+        <Field $span={3}><span className="label">Middle Name</span><InputCompact value={form.middle_name} onChange={e=>setF('middle_name',e.target.value)}/></Field>
+        <Field $span={3}><span className="label">Last Name</span><input value={form.last_name} onChange={e=>setF('last_name',e.target.value)}/></Field>
 
-        <Field span={6}><span className="label">Location</span>
-          <select value={form.location} onChange={e=>setF('location',e.target.value)}>
-            <option value="">Select...</option>{locationOpts.map(o=><option key={o}>{o}</option>)}
-          </select>
+        <Field $span={6}><span className="label">Location</span>
+          <NiceSelect value={form.location} onChange={e=>setF('location',e.target.value as StudentFormState["location"])}>
+            <option value="">Select...</option>{locationOpts.map(o=><option key={o} value={o}>{o}</option>)}
+          </NiceSelect>
         </Field>
 
-        <Field span={6}><span className="label">Housing Basis</span>
-          <select value={form.living_basis} onChange={e=>setF('living_basis',e.target.value)}>
-            <option value="">Select...</option>{housingBasis.map(o=><option key={o}>{o}</option>)}
-          </select>
+        <Field $span={6}><span className="label">Housing Basis</span>
+          <NiceSelect value={form.living_basis} onChange={e=>setF('living_basis',e.target.value as StudentFormState["living_basis"])}>
+            <option value="">Select...</option>{housingBasis.map(o=><option key={o} value={o}>{o}</option>)}
+          </NiceSelect>
           <small>Derived Living Arrangement: <b>{living_resolved||'-'}</b></small>
         </Field>
 
-        <Field span={4}><span className="label">Awards</span>
-          <select value={form.awards} onChange={e=>setF('awards',e.target.value)}>{yesno.map(x=><option key={x}>{x}</option>)}</select>
+        <Field $span={4}><span className="label">Awards</span>
+          <NiceSelect value={form.awards} onChange={e=>setF('awards',e.target.value as YesNo)}>
+            {yesno.map(x=><option key={x} value={x}>{x}</option>)}
+          </NiceSelect>
         </Field>
-        <Field span={8}><span className="label">Specialization Track</span>
-          <select value={form.specialization_track} onChange={e=>setF('specialization_track',e.target.value)}>
-            <option value="">Select...</option>{spec.map(x=><option key={x}>{x}</option>)}
-          </select>
-        </Field>
-
-        <Field span={4}><span className="label">Latin Honors</span>
-          <select value={form.latin_honors} onChange={e=>setF('latin_honors',e.target.value)}>{yesno.map(x=><option key={x}>{x}</option>)}</select>
+        <Field $span={8}><span className="label">Specialization Track</span>
+          <NiceSelect value={form.specialization_track} onChange={e=>setF('specialization_track',e.target.value as StudentFormState["specialization_track"])}>
+            <option value="">Select...</option>{spec.map(x=><option key={x} value={x}>{x}</option>)}
+          </NiceSelect>
         </Field>
 
-        <Field span={4}><span className="label">Failed Grade</span>
-          <select value={form.failed_grade} onChange={e=>setF('failed_grade',e.target.value)}>{yesno.map(x=><option key={x}>{x}</option>)}</select>
+        <Field $span={4}>
+          <span className="label">Latin Honors</span>
+          <NiceSelect
+            value={form.latin_honors}
+            onChange={(e)=>{
+              const v = e.target.value as YesNo;
+              if (anyGradeOver2_5 && v === "Yes") {
+                setLatinBlockMsg("Cannot select 'Yes' on Latin Honors if any grade < 2.50.");
+                setF("latin_honors","No");
+              } else {
+                setLatinBlockMsg("");
+                setF("latin_honors", v);
+              }
+            }}
+          >
+            <option value="Yes" disabled={anyGradeOver2_5}>Yes</option>
+            <option value="No">No</option>
+          </NiceSelect>
+          {latinBlockMsg && <Warn>⚠ {latinBlockMsg}</Warn>}
         </Field>
 
-        <Field span={4}><span className="label">Dropped Subjects</span>
-          <select value={form.dropped_subjects} onChange={e=>setF('dropped_subjects',e.target.value)}>
-            {yesno.map(x=><option key={x}>{x}</option>)}
-          </select>
+        <Field $span={4}><span className="label">Failed Grade</span>
+          <NiceSelect value={form.failed_grade} onChange={e=>setF('failed_grade',e.target.value as YesNo)}>
+            {yesno.map(x=><option key={x} value={x}>{x}</option>)}
+          </NiceSelect>
         </Field>
 
-        <Field span={12}><span className="label">Monthly Income Status</span>
-          <select value={form.monthly_income_status} onChange={e=>setF('monthly_income_status',e.target.value)}>
-            {income.map(x=><option key={x}>{x}</option>)}
-          </select>
+        <Field $span={4}><span className="label">Dropped Subjects</span>
+          <NiceSelect value={form.dropped_subjects} onChange={e=>setF('dropped_subjects',e.target.value as YesNo)}>
+            {yesno.map(x=><option key={x} value={x}>{x}</option>)}
+          </NiceSelect>
         </Field>
 
-        <Field span={3}><span className="label">Certification(s)</span>
-          <input value={form.certification_text} onChange={e=>setF('certification_text',e.target.value)} placeholder="comma-separated; empty=No"/>
-          <small>Derived: <b>{cert_yn}</b></small>
+        <Field $span={12}><span className="label">Monthly Income Status</span>
+          <NiceSelect value={form.monthly_income_status} onChange={e=>setF('monthly_income_status',e.target.value as StudentFormState["monthly_income_status"])}>
+            {income.map(x=><option key={x} value={x}>{x}</option>)}
+          </NiceSelect>
         </Field>
 
-        {/* EXTRACURRICULAR */}
-        <Field span={12}>
-          <span className="label">Extracurricular (check all that apply)</span>
-          <Row>
-            {EXTRACURR.map(x=>(
-              <label key={x} style={{display:'flex',alignItems:'center',gap:8}}>
-                <input type="checkbox" checked={form.extracurricular.includes(x)} onChange={()=>toggleInArray('extracurricular',x)} />
-                {x}
-              </label>
-            ))}
-          </Row>
-          <small>Cluster: <b>{extra_cluster}</b></small>
+        {/* Certifications: text only (upload removed) */}
+        <Field $span={12}>
+          <span className="label">Certification(s)</span>
+          <textarea
+            value={form.certification_text}
+            onChange={e=>setF('certification_text',e.target.value)}
+            placeholder="Hal: AWS CCP, NCII CSS, etc. (comma-separated)"
+          />
+          <small>Derived: <b>{splitCerts(form.certification_text).length ? "Yes" : "No"}</b></small>
         </Field>
 
-        {/* SOFT SKILLS */}
-        <Field span={12}>
-          <span className="label">Soft Skills (check all that apply)</span>
-          <Row>
-            {SOFT_SKILLS.map(x=>(
-              <label key={x} style={{display:'flex',alignItems:'center',gap:8}}>
-                <input type="checkbox" checked={form.soft_skills.includes(x)} onChange={()=>toggleInArray('soft_skills',x)} />
-                {x}
-              </label>
-            ))}
-          </Row>
-          <small>Composite: <b>{soft_comp.score}</b> → Level: <b>{soft_comp.level}</b></small>
+        {/* ===== EXTRACURRICULAR ===== */}
+        <Field $span={12}>
+          <span className="label">Extracurricular</span>
+          <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+            {EXTRACURR.map(opt => {
+              const on = form.extracurricular.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={()=>toggleInArray("extracurricular", opt)}
+                  style={{
+                    padding:"8px 12px",
+                    borderRadius:999,
+                    border:on ? "1px solid #1f2a5a" : "1px solid #e5e7eb",
+                    background:on ? "#eef2ff" : "#fff",
+                    fontWeight:700,
+                    cursor:"pointer"
+                  }}
+                  aria-pressed={on}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+          <small>Selected: <b>{form.extracurricular.length || 0}</b></small>
+          <small style={{marginTop:6}}>Derived Cluster: <b>{extra_cluster}</b></small>
         </Field>
 
-        {/* ===== CLUSTERED COURSE GRADES (now dropdowns) ===== */}
-        <Card style={{gridColumn:'1 / -1', background:'#fafafa'}}>
-          <b>Course Grades (1.00–5.00)</b>
+        {/* ===== SOFT SKILLS ===== */}
+        <Field $span={12}>
+          <span className="label">Soft Skills</span>
+          <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+            {SOFT_SKILLS.map(opt => {
+              const on = form.soft_skills.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={()=>toggleInArray("soft_skills", opt)}
+                  style={{
+                    padding:"8px 12px",
+                    borderRadius:999,
+                    border:on ? "1px solid #065f46" : "1px solid #e5e7eb",
+                    background:on ? "#d1fae5" : "#fff",
+                    fontWeight:700,
+                    cursor:"pointer"
+                  }}
+                  aria-pressed={on}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+          <small>Selected: <b>{form.soft_skills.length || 0}</b></small>
+          <small style={{marginTop:6}}>Composite: <b>{soft_comp.level}</b> <span style={{color:"#6b7280"}}>(score {soft_comp.score})</span></small>
+        </Field>
 
-          <SubH>Programming</SubH>
-          <Grid>
-            <Field span={2}><span className="label">IT105</span><GradeSelect value={form.it105} onChange={v=>setF('it105',v)} /></Field>
-            <Field span={2}><span className="label">IT203</span><GradeSelect value={form.it203} onChange={v=>setF('it203',v)} /></Field>
-            <Field span={2}><span className="label">IT207</span><GradeSelect value={form.it207} onChange={v=>setF('it207',v)} /></Field>
-            <Field span={2}><span className="label">IT204</span><GradeSelect value={form.it204} onChange={v=>setF('it204',v)} /></Field>
-            <Field span={2}><span className="label">Avg</span><input readOnly value={programming_avg} /></Field>
-          </Grid>
+        {/* ===== CLUSTERED COURSE GRADES (aligned) ===== */}
+        <GradeCard style={{gridColumn:'1 / -1'}}>
+          <b>Course Grades (1.00–3.00)</b>
 
-          <SubH>Networking</SubH>
-          <Grid>
-            <Field span={2}><span className="label">IT106</span><GradeSelect value={form.it106} onChange={v=>setF('it106',v)} /></Field>
-            <Field span={2}><span className="label">IT210</span><GradeSelect value={form.it210} onChange={v=>setF('it210',v)} /></Field>
-            <Field span={2}><span className="label">Avg</span><input readOnly value={networking_avg} /></Field>
-          </Grid>
+          <GradeSection
+            title="Programming"
+            items={[
+              { code: "IT105", value: form.it105, set: (v)=>setF('it105',v) },
+              { code: "IT203", value: form.it203, set: (v)=>setF('it203',v) },
+              { code: "IT207", value: form.it207, set: (v)=>setF('it207',v) },
+              { code: "IT204", value: form.it204, set: (v)=>setF('it204',v) },
+            ]}
+            avgValue={programming_avg}
+          />
 
-          <SubH>Database</SubH>
-          <Grid>
-            <Field span={2}><span className="label">IT202</span><GradeSelect value={form.it202} onChange={v=>setF('it202',v)} /></Field>
-            <Field span={2}><span className="label">IT206</span><GradeSelect value={form.it206} onChange={v=>setF('it206',v)} /></Field>
-            <Field span={2}><span className="label">Avg</span><input readOnly value={database_avg} /></Field>
-          </Grid>
+          <GradeSection
+            title="Networking"
+            items={[
+              { code: "IT106", value: form.it106, set: (v)=>setF('it106',v) },
+              { code: "IT210", value: form.it210, set: (v)=>setF('it210',v) },
+            ]}
+            avgValue={networking_avg}
+          />
 
-          <SubH>Web and System Development</SubH>
-          <Grid>
-            <Field span={2}><span className="label">IT303</span><GradeSelect value={form.it303} onChange={v=>setF('it303',v)} /></Field>
-            <Field span={2}><span className="label">IT304</span><GradeSelect value={form.it304} onChange={v=>setF('it304',v)} /></Field>
-            <Field span={2}><span className="label">IT310</span><GradeSelect value={form.it310} onChange={v=>setF('it310',v)} /></Field>
-            <Field span={2}><span className="label">Avg</span><input readOnly value={wsd_avg} /></Field>
-          </Grid>
+          <GradeSection
+            title="Database"
+            items={[
+              { code: "IT202", value: form.it202, set: (v)=>setF('it202',v) },
+              { code: "IT206", value: form.it206, set: (v)=>setF('it206',v) },
+            ]}
+            avgValue={database_avg}
+          />
 
-          <SubH>Hardware and Computing Fundamentals</SubH>
-          <Grid>
-            <Field span={2}><span className="label">IT102</span><GradeSelect value={form.it102} onChange={v=>setF('it102',v)} /></Field>
-            <Field span={2}><span className="label">IT104</span><GradeSelect value={form.it104} onChange={v=>setF('it104',v)} /></Field>
-            <Field span={2}><span className="label">Avg</span><input readOnly value={hcf_avg} /></Field>
-          </Grid>
+          <GradeSection
+            title="Web and System Development"
+            items={[
+              { code: "IT303", value: form.it303, set: (v)=>setF('it303',v) },
+              { code: "IT304", value: form.it304, set: (v)=>setF('it304',v) },
+              { code: "IT310", value: form.it310, set: (v)=>setF('it310',v) },
+            ]}
+            avgValue={wsd_avg}
+          />
 
-          <SubH>Electives</SubH>
-          <Grid>
-            <Field span={2}><span className="label">IT306</span><GradeSelect value={form.it306} onChange={v=>setF('it306',v)} /></Field>
-            <Field span={2}><span className="label">IT307</span><GradeSelect value={form.it307} onChange={v=>setF('it307',v)} /></Field>
-            <Field span={2}><span className="label">IT311</span><GradeSelect value={form.it311} onChange={v=>setF('it311',v)} /></Field>
-            <Field span={2}><span className="label">IT312</span><GradeSelect value={form.it312} onChange={v=>setF('it312',v)} /></Field>
-            <Field span={2}><span className="label">Avg</span><input readOnly value={electives_avg} /></Field>
-          </Grid>
-        </Card>
+          <GradeSection
+            title="Hardware and Computing Fundamentals"
+            items={[
+              { code: "IT102", value: form.it102, set: (v)=>setF('it102',v) },
+              { code: "IT104", value: form.it104, set: (v)=>setF('it104',v) },
+            ]}
+            avgValue={hcf_avg}
+          />
+
+          <GradeSection
+            title="Electives"
+            items={[
+              { code: "IT306", value: form.it306, set: (v)=>setF('it306',v) },
+              { code: "IT307", value: form.it307, set: (v)=>setF('it307',v) },
+              { code: "IT311", value: form.it311, set: (v)=>setF('it311',v) },
+              { code: "IT312", value: form.it312, set: (v)=>setF('it312',v) },
+            ]}
+            avgValue={electives_avg}
+          />
+        </GradeCard>
       </Grid>
 
       <Row>
@@ -656,19 +843,19 @@ export default function StudentFormWithClustering(){
     </Card>
   );
 
-  const ResultsCard = (
+  const ResultsCardEl = (
     <Card>
       <H>Results</H>
       {prediction ? (
         <>
           <ResultRow>
-            <span className="pill">Label: {prediction.prediction_label}</span>
-            <span className="pill">Index: {prediction.prediction_index}</span>
+            {/* <span className="pill">Label: {prediction.prediction_label || "—"}</span>
+            <span className="pill">Index: {typeof prediction.prediction_index === "number" ? prediction.prediction_index : "—"}</span>
             <Muted>
               {prediction.note === "existing_prediction"
                 ? "This is the existing saved prediction for the student."
                 : "One-time prediction saved for this student."}
-            </Muted>
+            </Muted> */}
           </ResultRow>
 
           <SubH style={{marginTop:16}}>Percentages</SubH>
@@ -678,8 +865,8 @@ export default function StudentFormWithClustering(){
               return (
                 <Bar key={label}>
                   <div className="label">{label}</div>
-                  <div className="track"><div className="fill" style={{width:`${pct}%`}}/></div>
-                  <div className="val">{pct.toFixed(2)}%</div>
+                  <div className="track"><div className="fill" style={{width:`${isFinite(pct) ? pct : 0}%`}}/></div>
+                  <div className="val">{isFinite(pct) ? pct.toFixed(2) : "0.00"}%</div>
                 </Bar>
               );
             })}
@@ -694,7 +881,7 @@ export default function StudentFormWithClustering(){
                 strengths={radar.strengths}
                 weaknesses={radar.weaknesses}
               />
-              <Muted>Green area = strengths; Red area = weaknesses (higher = more pronounced).</Muted>
+              <Muted>Green = strengths; Red = weaknesses.</Muted>
             </RadarBox>
 
             <div>
@@ -726,19 +913,19 @@ export default function StudentFormWithClustering(){
     <>
       <GlobalStyle/>
       <Shell>
-       <StudentSidebar
-        menuItems={menuItems}
-        active="Predict"
-        onSelect={() => {}}     // keep this to satisfy Sidebar’s required prop
-        onLogout={handleLogout}
-      />
-
-
+        <StudentSidebar
+          menuItems={menuItems}
+          active="Predict"
+          onSelect={() => {}}
+          onLogout={handleLogout}
+        />
         <Content>
-          {!shouldHideForm && FormCard}
-          {ResultsCard}
+          {!shouldHideForm && FormCardEl}
+          {ResultsCardEl}
         </Content>
       </Shell>
     </>
   );
-}
+};
+
+export default StudentFormWithClustering;

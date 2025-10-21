@@ -72,10 +72,14 @@ const Field = styled.label<{ span?: number }>`
   grid-column: span ${p => p.span ?? 6};
   display:flex;flex-direction:column;gap:6px;font-size:13px;color:#374151;
   .label{font-weight:600;}
-  input,select,textarea{padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px;}
+  input,select,textarea{
+    padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px; background:#fff;
+    height:40px;
+  }
+  textarea{height:auto; min-height:90px; resize:vertical;}
   small{color:#6b7280}
 `;
-const Row = styled.div`display:flex;gap:10px;flex-wrap:wrap;`;
+
 const Button = styled.button<{ ghost?: boolean }>`
   border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;
   box-shadow:0 8px 30px rgba(15,27,40,0.05);
@@ -110,18 +114,15 @@ const Footer = styled.div`
   select{padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff;}
 `;
 
-/* ======= Toast ======= */
-const ToastWrap = styled.div`
-  position: fixed; top: 20px; right: 20px; display: grid; gap: 10px; z-index: 9999;
+const PillButton = styled.button<{ onstate?: boolean; color?: "indigo" | "green" }>`
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid ${p=>p.onstate ? (p.color==="green" ? "#065f46" : "#1f2a5a") : "#e5e7eb"};
+  background:${p=>p.onstate ? (p.color==="green" ? "#d1fae5" : "#eef2ff") : "#fff"};
+  font-weight:700; cursor:pointer;
 `;
-const Toast = styled.div<{ type: ToastType }>`
-  background: ${p => p.type === "error" ? "#fee2e2" : "#ecfdf5"};
-  color: ${p => p.type === "error" ? "#991b1b" : "#065f46"};
-  border: 1px solid ${p => p.type === "error" ? "#fecaca" : "#a7f3d0"};
-  border-left: 6px solid ${p => p.type === "error" ? "#ef4444" : "#10b981"};
-  padding: 12px 14px; border-radius: 12px; box-shadow:0 8px 30px rgba(15,27,40,.08);
-  min-width: 260px; font-weight: 600;
-`;
+
+const Warn = styled.div`color:#b91c1c; font-weight:700; margin-top:6px;`;
 
 /* =================== Constants / Helpers =================== */
 const API_BASE = "https://7081632a-ae22-4129-a4ef-6278bbe2e1dd-00-1z76er70sktr4.pike.replit.dev";
@@ -167,12 +168,8 @@ const course = {
   elec: ["it306","it307","it311","it312"],
 } as const;
 
-
-/* Grades */
-const GRADE_VALUES = [
-  ...Array.from({ length: 9 }, (_, i) => (1 + i * 0.25).toFixed(2)), // 1.00–3.00
-  "5.00",
-] as const;
+/* Grades: 1.00–3.00 (step .25) to match the student form */
+const GRADE_VALUES: readonly string[] = Array.from({ length: 9 }, (_, i) => (1 + i * 0.25).toFixed(2));
 
 function avg(grades: (string | number | undefined)[]): string {
   const nums = grades.map(Number).filter(v => Number.isFinite(v));
@@ -221,12 +218,14 @@ function AdminStudentProfile(props: {
   const { mode, value, onChange, onCancel, onSave, saving } = props;
   const setF = (k: string, v: any) => onChange({ ...value, [k]: v });
 
+  // chip togglers (preserve arrays)
   const toggleInArray = (arrKey: "extracurricular" | "soft_skills", val: string) => {
     const cur = new Set<string>(value[arrKey] || []);
     cur.has(val) ? cur.delete(val) : cur.add(val);
     onChange({ ...value, [arrKey]: Array.from(cur) });
   };
 
+  // averages
   const programming_avg = useMemo(()=>avg(course.prog.map(k=>value[k])),[value]);
   const networking_avg  = useMemo(()=>avg(course.net.map(k=>value[k])),[value]);
   const database_avg    = useMemo(()=>avg(course.db.map(k=>value[k])),[value]);
@@ -234,18 +233,39 @@ function AdminStudentProfile(props: {
   const hcf_avg         = useMemo(()=>avg(course.hcf.map(k=>value[k])),[value]);
   const electives_avg   = useMemo(()=>avg(course.elec.map(k=>value[k])),[value]);
 
+  // derived
   const extra_cluster   = useMemo(()=>extraCluster(value.extracurricular||[]),[value.extracurricular]);
   const living_resolved = useMemo(()=>resolveHousing(value.living_basis),[value.living_basis]);
   const soft_comp       = useMemo(()=>softComposite(value.soft_skills||[]),[value.soft_skills]);
   const cert_yn         = splitCerts(value.certification_text).length ? "Yes" : "No";
+
+  // latin honors guard (block "Yes" if any grade > 2.50)
+  const anyGradeOver2_5 = useMemo(() => {
+    const vals = [
+      ...course.prog, ...course.net, ...course.db, ...course.wsd, ...course.hcf, ...course.elec
+    ].map(k => parseFloat(String(value[k]))).filter(v => !isNaN(v));
+    return vals.some(v => v > 2.5);
+  }, [value]);
+
+  const [latinWarn, setLatinWarn] = useState<string>("");
+
+  useEffect(() => {
+    if (anyGradeOver2_5 && value.latin_honors === "Yes") {
+      setLatinWarn("Cannot select 'Yes' on Latin Honors if any grade < 2.50.");
+      onChange({ ...value, latin_honors: "No" });
+    } else {
+      setLatinWarn("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyGradeOver2_5, value.latin_honors]);
 
   const readOnly = mode !== "edit";
 
   const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (p) =>
     <input {...p} disabled={readOnly} />;
 
-  const Select: React.FC<{ options: readonly string[]; val?: string; onC: (v: string)=>void }> = ({ options, val, onC }) => (
-    <select value={val||""} onChange={e=>onC(e.target.value)} disabled={readOnly}>
+  const Select: React.FC<{ options: readonly string[]; val?: string; onC: (v: string)=>void; disabled?: boolean }> = ({ options, val, onC, disabled }) => (
+    <select value={val||""} onChange={e=>onC(e.target.value)} disabled={readOnly || disabled}>
       <option value="">Select...</option>
       {options.map(o=><option key={o} value={o}>{o}</option>)}
     </select>
@@ -298,7 +318,20 @@ function AdminStudentProfile(props: {
         </Field>
 
         <Field span={4}><span className="label">Latin Honors</span>
-          <Select options={yesno} val={(value.latin_honors as string) ?? ""} onC={v=>setF("latin_honors",v)} />
+          <Select
+            options={yesno}
+            val={(value.latin_honors as string) ?? ""}
+            onC={(v)=>{
+              if (anyGradeOver2_5 && v === "Yes") {
+                setLatinWarn("Cannot select 'Yes' on Latin Honors if any grade < 2.50.");
+                setF("latin_honors","No");
+              } else {
+                setLatinWarn("");
+                setF("latin_honors", v);
+              }
+            }}
+          />
+          {latinWarn && <Warn>⚠ {latinWarn}</Warn>}
         </Field>
 
         <Field span={4}><span className="label">Failed Grade</span>
@@ -313,39 +346,67 @@ function AdminStudentProfile(props: {
           <Select options={income as unknown as string[]} val={value.monthly_income_status ?? ""} onC={v=>setF("monthly_income_status",v)} />
         </Field>
 
-        <Field span={3}><span className="label">Certification(s)</span>
-          <Input value={value.certification_text||""} onChange={e=>setF("certification_text",e.target.value)} placeholder="comma-separated; empty=No"/>
+        <Field span={12}>
+          <span className="label">Certification(s)</span>
+          <textarea
+            value={value.certification_text||""}
+            onChange={e=>setF("certification_text",e.target.value)}
+            placeholder="Hal: AWS CCP, NCII CSS, etc. (comma-separated)"
+            disabled={readOnly}
+          />
           <small>Derived: <b>{cert_yn}</b></small>
         </Field>
 
+        {/* ===== EXTRACURRICULAR (chips) ===== */}
         <Field span={12}>
-          <span className="label">Extracurricular (check all that apply)</span>
-          <Row>
-            {EXTRACURR.map(x=>(
-              <label key={x} style={{display:'flex',alignItems:'center',gap:8, opacity: readOnly?0.7:1}}>
-                <input type="checkbox" disabled={readOnly} checked={(value.extracurricular||[]).includes(x)} onChange={()=>toggleInArray("extracurricular",x)} />
-                {x}
-              </label>
-            ))}
-          </Row>
-          <small>Cluster: <b>{extra_cluster}</b></small>
+          <span className="label">Extracurricular</span>
+          <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+            {EXTRACURR.map(opt => {
+              const on = (value.extracurricular||[]).includes(opt);
+              return (
+                <PillButton
+                  key={opt}
+                  type="button"
+                  onClick={()=>!readOnly && toggleInArray("extracurricular", opt)}
+                  onstate={on}
+                  disabled={readOnly}
+                >
+                  {opt}
+                </PillButton>
+              );
+            })}
+          </div>
+          <small>Selected: <b>{value.extracurricular?.length || 0}</b></small>
+          <small style={{marginTop:6}}>Cluster: <b>{extra_cluster}</b></small>
         </Field>
 
+        {/* ===== SOFT SKILLS (chips) ===== */}
         <Field span={12}>
-          <span className="label">Soft Skills (check all that apply)</span>
-          <Row>
-            {SOFT_SKILLS.map(x=>(
-              <label key={x} style={{display:'flex',alignItems:'center',gap:8, opacity: readOnly?0.7:1}}>
-                <input type="checkbox" disabled={readOnly} checked={(value.soft_skills||[]).includes(x)} onChange={()=>toggleInArray("soft_skills",x)} />
-                {x}
-              </label>
-            ))}
-          </Row>
-          <small>Composite: <b>{soft_comp.score||0}</b> → Level: <b>{soft_comp.level}</b></small>
+          <span className="label">Soft Skills</span>
+          <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+            {SOFT_SKILLS.map(opt => {
+              const on = (value.soft_skills||[]).includes(opt);
+              return (
+                <PillButton
+                  key={opt}
+                  type="button"
+                  onClick={()=>!readOnly && toggleInArray("soft_skills", opt)}
+                  onstate={on}
+                  color="green"
+                  disabled={readOnly}
+                >
+                  {opt}
+                </PillButton>
+              );
+            })}
+          </div>
+          <small>Selected: <b>{value.soft_skills?.length || 0}</b></small>
+          <small style={{marginTop:6}}>Composite: <b>{soft_comp.level}</b> <span style={{color:"#6b7280"}}>(score {soft_comp.score})</span></small>
         </Field>
 
+        {/* ===== GRADES ===== */}
         <Card style={{gridColumn:'1 / -1', background:'#fafafa'}}>
-          <b>Course Grades (1.00–5.00)</b>
+          <b>Course Grades (1.00–3.00)</b>
 
           <SubH>Programming</SubH>
           <Grid>
@@ -458,11 +519,19 @@ export default function AdminStudents(): JSX.Element {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed to load student");
       const s = (j.student || {}) as StudentFull;
+
+      // Robustly accept arrays or *_json strings
+      const toArr = (rawA: unknown, rawJson?: string) => {
+        if (Array.isArray(rawA)) return rawA as string[];
+        try { return JSON.parse(rawJson || "[]"); } catch { return []; }
+      };
+
       const normalized: StudentFull = {
         ...s,
-        extracurricular: JSON.parse(s.extracurricular_json || "[]"),
-        soft_skills: JSON.parse(s.soft_skills_json || "[]"),
+        extracurricular: toArr((s as any).extracurricular, s.extracurricular_json),
+        soft_skills: toArr((s as any).soft_skills, s.soft_skills_json),
       };
+
       setSelected(normalized);
       setMode(nextMode);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -493,10 +562,15 @@ export default function AdminStudents(): JSX.Element {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Save failed");
 
+      const updatedRaw: StudentFull = j.student || {};
+      const toArr = (rawA: unknown, rawJson?: string) => {
+        if (Array.isArray(rawA)) return rawA as string[];
+        try { return JSON.parse(rawJson || "[]"); } catch { return []; }
+      };
       const updated: StudentFull = {
-        ...j.student,
-        extracurricular: JSON.parse(j.student.extracurricular_json || "[]"),
-        soft_skills: JSON.parse(j.student.soft_skills_json || "[]"),
+        ...updatedRaw,
+        extracurricular: toArr((updatedRaw as any).extracurricular, updatedRaw.extracurricular_json),
+        soft_skills: toArr((updatedRaw as any).soft_skills, updatedRaw.soft_skills_json),
       };
 
       setRows(rs => rs.map(x => x.id === updated.id ? {
@@ -689,7 +763,7 @@ export default function AdminStudents(): JSX.Element {
         <Sidebar
           menuItems={menuItems}
           active={"Students"}
-          onSelect={() => { /* noop for student sidebar if required */ }}
+          onSelect={() => { /* noop */ }}
           onLogout={() => { localStorage.clear(); window.location.replace("/login"); }}
         />
 
@@ -838,3 +912,16 @@ export default function AdminStudents(): JSX.Element {
     </>
   );
 }
+
+/* ======= Toast ======= */
+const ToastWrap = styled.div`
+  position: fixed; top: 20px; right: 20px; display: grid; gap: 10px; z-index: 9999;
+`;
+const Toast = styled.div<{ type: ToastType }>`
+  background: ${p => p.type === "error" ? "#fee2e2" : "#ecfdf5"};
+  color: ${p => p.type === "error" ? "#991b1b" : "#065f46"};
+  border: 1px solid ${p => p.type === "error" ? "#fecaca" : "#a7f3d0"};
+  border-left: 6px solid ${p => p.type === "error" ? "#ef4444" : "#10b981"};
+  padding: 12px 14px; border-radius: 12px; box-shadow:0 8px 30px rgba(15,27,40,.08);
+  min-width: 260px; font-weight: 600;
+`;
